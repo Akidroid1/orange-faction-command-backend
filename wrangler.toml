@@ -1,0 +1,19 @@
+name = "orange-faction-command"
+main = "worker.js"
+compatibility_date = "2026-09-12"
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+
+[vars]
+FACTION_ID = "53295"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "orange-faction-db"
+database_id = "7be0ef62-dd62-4dde-b8c0-b39ee4f939c8"
+migrations_dir = "./migrations"
+
+[triggers]
+crons = ["*/5 * * * *"]
