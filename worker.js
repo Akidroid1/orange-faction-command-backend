@@ -15,19 +15,21 @@ const SELECTIONS = [
   'attacks',
   'revives',
   'stats',
-  'wars',
-  'inventory'
+  'wars'
 ];
 
-const json = (data, status = 200, headers = {}) => new Response(JSON.stringify(data), {
-  status,
-  headers: {
-    'content-type': 'application/json; charset=UTF-8',
-    'access-control-allow-origin': '*',
-    'cache-control': 'no-store',
-    ...headers
+const json = (data, status = 200, headers = {}) => new Response(
+  JSON.stringify(data),
+  {
+    status,
+    headers: {
+      'content-type': 'application/json; charset=UTF-8',
+      'access-control-allow-origin': '*',
+      'cache-control': 'no-store',
+      ...headers
+    }
   }
-});
+);
 
 function factionId(value) {
   const id = String(value || DEFAULT_FACTION_ID).trim();
@@ -40,10 +42,12 @@ function errorMessage(data, status) {
 
 async function tornFetch(id, apiKey) {
   const url = new URL(TORN_API);
+
   url.searchParams.set('id', id);
   url.searchParams.set('selections', SELECTIONS.join(','));
 
   const response = await fetch(url, {
+    method: 'GET',
     headers: {
       accept: 'application/json',
       authorization: `ApiKey ${apiKey}`
@@ -81,27 +85,25 @@ function normalize(data, id) {
     result.rankedwar = result.rankedwars;
   }
 
-  if (!result.armory && result.inventory) {
-    result.armory = result.inventory;
-  }
-
-  result._meta = {
-    faction_id: Number(id),
-    fetched_at: new Date().toISOString(),
-    request_count: 1,
-    request_strategy: 'single-torn-request-to-backend-database',
-    selections: SELECTIONS,
-    cached: true,
-    partial_failures: []
+  return {
+    ...result,
+    _meta: {
+      faction_id: Number(id),
+      fetched_at: new Date().toISOString(),
+      request_count: 1,
+      request_strategy: 'single-torn-v2-request',
+      cached: true,
+      partial_failures: []
+    }
   };
-
-  return result;
 }
 
 function memberArray(data) {
   const value = data?.members?.members ?? data?.members;
 
-  if (Array.isArray(value)) return value;
+  if (Array.isArray(value)) {
+    return value;
+  }
 
   if (value && typeof value === 'object') {
     return Object.values(value);
@@ -112,10 +114,9 @@ function memberArray(data) {
 
 function memberText(member, ...paths) {
   for (const path of paths) {
-    const value = path.split('.').reduce(
-      (a, k) => a?.[k],
-      member
-    );
+    const value = path
+      .split('.')
+      .reduce((a, k) => a?.[k], member);
 
     if (value !== undefined && value !== null) {
       return String(value);
@@ -171,8 +172,7 @@ async function saveSnapshot(env, id, data, fetchedAt) {
           payload
         )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `)
-      .bind(
+      `).bind(
         Number(id),
         Number(member.id || 0),
         member.name || member.username || null,
@@ -201,9 +201,7 @@ async function saveSnapshot(env, id, data, fetchedAt) {
     );
 
     for (let i = 0; i < statements.length; i += 50) {
-      await env.DB.batch(
-        statements.slice(i, i + 50)
-      );
+      await env.DB.batch(statements.slice(i, i + 50));
     }
   }
 
@@ -218,7 +216,10 @@ async function saveSnapshot(env, id, data, fetchedAt) {
     )
     AND faction_id = ?
   `)
-    .bind(Number(id), Number(id))
+    .bind(
+      Number(id),
+      Number(id)
+    )
     .run();
 }
 
@@ -243,13 +244,7 @@ async function syncFaction(env, id) {
 
     await env.DB.prepare(`
       INSERT INTO sync_log
-      (
-        started_at,
-        finished_at,
-        success,
-        request_count,
-        error
-      )
+      (started_at, finished_at, success, request_count, error)
       VALUES (?, ?, 1, 1, NULL)
     `)
       .bind(
@@ -265,13 +260,7 @@ async function syncFaction(env, id) {
 
     await env.DB.prepare(`
       INSERT INTO sync_log
-      (
-        started_at,
-        finished_at,
-        success,
-        request_count,
-        error
-      )
+      (started_at, finished_at, success, request_count, error)
       VALUES (?, ?, 0, 1, ?)
     `)
       .bind(
@@ -294,7 +283,9 @@ async function currentFaction(env, id) {
     .bind(Number(id))
     .first();
 
-  if (!row) return null;
+  if (!row) {
+    return null;
+  }
 
   try {
     const data = JSON.parse(row.payload);
@@ -342,7 +333,9 @@ async function handleFaction(request, env) {
 
   if (!env.TORN_API_KEY) {
     return json(
-      { error: 'TORN_API_KEY is not configured.' },
+      {
+        error: 'TORN_API_KEY is not configured.'
+      },
       500
     );
   }
@@ -356,7 +349,10 @@ async function handleFaction(request, env) {
     return json(
       fresh,
       200,
-      { 'x-faction-source': 'torn-initial-sync' }
+      {
+        'x-faction-source':
+          'torn-initial-sync'
+      }
     );
 
   } catch (error) {
@@ -373,8 +369,7 @@ async function handleFaction(request, env) {
           'Unable to synchronize faction data.',
         error_code:
           Number(error?.code) || null,
-        faction_id:
-          Number(id),
+        faction_id: Number(id),
         request_count: 1
       },
       status,
@@ -439,7 +434,9 @@ async function handleSync(request, env) {
   }
 
   const secret =
-    request.headers.get('x-admin-secret');
+    request.headers.get(
+      'x-admin-secret'
+    );
 
   if (
     !env.SYNC_SECRET ||
@@ -521,52 +518,75 @@ async function handleHealth(env) {
 
   return json({
     ok: true,
-    service: 'orange-faction-backend',
+    service:
+      'orange-faction-backend',
     database: true,
     last_sync:
       row?.fetched_at || null,
     last_sync_result: log
       ? {
-          finished_at: log.finished_at,
-          success: Boolean(log.success),
-          error: log.error
+          finished_at:
+            log.finished_at,
+          success:
+            Boolean(log.success),
+          error:
+            log.error
         }
       : null,
-    time: new Date().toISOString()
+    time:
+      new Date().toISOString()
   });
 }
 
 export default {
   async fetch(request, env) {
-    const url = new URL(request.url);
+    const url = new URL(
+      request.url
+    );
 
     try {
-      if (url.pathname === '/api/faction') {
+      if (
+        url.pathname ===
+        '/api/faction'
+      ) {
         return await handleFaction(
           request,
           env
         );
       }
 
-      if (url.pathname === '/api/history') {
+      if (
+        url.pathname ===
+        '/api/history'
+      ) {
         return await handleHistory(
           request,
           env
         );
       }
 
-      if (url.pathname === '/api/sync') {
+      if (
+        url.pathname ===
+        '/api/sync'
+      ) {
         return await handleSync(
           request,
           env
         );
       }
 
-      if (url.pathname === '/api/health') {
-        return await handleHealth(env);
+      if (
+        url.pathname ===
+        '/api/health'
+      ) {
+        return await handleHealth(
+          env
+        );
       }
 
-      return env.ASSETS.fetch(request);
+      return env.ASSETS.fetch(
+        request
+      );
 
     } catch (error) {
       return json(
@@ -580,18 +600,29 @@ export default {
     }
   },
 
-  async scheduled(controller, env, ctx) {
+  async scheduled(
+    controller,
+    env,
+    ctx
+  ) {
     const id =
-      factionId(env.FACTION_ID) ||
+      factionId(
+        env.FACTION_ID
+      ) ||
       DEFAULT_FACTION_ID;
 
-    if (!env.TORN_API_KEY || !env.DB) {
+    if (
+      !env.TORN_API_KEY ||
+      !env.DB
+    ) {
       return;
     }
 
     ctx.waitUntil(
-      syncFaction(env, id).catch(() => {})
+      syncFaction(
+        env,
+        id
+      ).catch(() => {})
     );
   }
 };
-
