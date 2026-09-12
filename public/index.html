@@ -1,62 +1,449 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#0a0d12"><title>ORANGE // Faction Command</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0a0d12">
+<title>ORANGE // Faction Command</title>
 <link rel="stylesheet" href="/assets/style.css">
 </head>
 <body>
+
 <div class="shell">
+
 <aside class="sidebar">
-  <div class="brand"><div class="brand-mark">OR</div><div><strong id="factionName">ORANGE</strong><small>FACTION COMMAND</small></div></div>
-  <div class="side-status"><i id="liveDot"></i><span id="statusLine">Connecting…</span></div>
-  <nav>
-    <button class="nav active" data-tab="overview"><span>⌂</span> Command</button>
-    <button class="nav" data-tab="members"><span>◉</span> Members</button>
-    <button class="nav" data-tab="chain"><span>⛓</span> Chain</button>
-    <button class="nav" data-tab="crimes"><span>◆</span> Organized Crimes</button>
-    <button class="nav" data-tab="armory"><span>▣</span> Armory</button>
-    <button class="nav" data-tab="wars"><span>⚔</span> Wars</button>
-    <button class="nav" data-tab="activity"><span>↯</span> Activity</button>
-    <button class="nav" data-tab="upgrades"><span>▲</span> Upgrades</button>
-  </nav>
-  <div class="side-links">
-    <a id="tornBtn" target="_blank" rel="noopener">Open Torn</a>
-    <a id="pdaBtn">Open in TornPDA</a>
-    <a id="statsBtn" target="_blank" rel="noopener">TornStats</a>
-    <a id="discordBtn" target="_blank" rel="noopener">Discord</a>
-  </div>
-  <div class="side-foot">FACTION #53295<br><span>Auto sync <b>5m</b></span></div>
+
+<div class="brand">
+<div class="brand-mark">OR</div>
+<div>
+<strong id="factionName">ORANGE</strong>
+<small>FACTION COMMAND</small>
+</div>
+</div>
+
+<div class="side-status">
+<i id="liveDot"></i>
+<span id="statusLine">Connecting…</span>
+</div>
+
+<nav>
+<button class="nav active" data-tab="overview"><span>⌂</span> Command</button>
+<button class="nav" data-tab="members"><span>◉</span> Members</button>
+<button class="nav" data-tab="chain"><span>⛓</span> Chain</button>
+<button class="nav" data-tab="crimes"><span>◆</span> Organized Crimes</button>
+<button class="nav" data-tab="armory"><span>▣</span> Armory</button>
+<button class="nav" data-tab="wars"><span>⚔</span> Wars</button>
+<button class="nav" data-tab="activity"><span>↯</span> Activity</button>
+<button class="nav" data-tab="upgrades"><span>▲</span> Upgrades</button>
+</nav>
+
+<div class="side-links">
+<a id="tornBtn" target="_blank" rel="noopener">Open Torn</a>
+<a id="pdaBtn">Open in TornPDA</a>
+<a id="statsBtn" target="_blank" rel="noopener">TornStats</a>
+<a id="discordBtn" target="_blank" rel="noopener">Discord</a>
+</div>
+
+<div class="side-foot">
+FACTION #53295<br>
+<span>Auto sync <b>5m</b></span>
+</div>
+
 </aside>
+
 <main class="main">
-<header class="topbar"><div><div class="eyebrow">TACTICAL OPERATIONS / LIVE</div><h1 id="heroTitle">Faction Command</h1><p id="heroSub">Loading live faction intelligence…</p></div><div class="top-actions"><button id="refreshBtn" class="btn">↻ Refresh</button><span id="updated" class="updated">—</span></div></header>
+
+<header class="topbar">
+<div>
+<div class="eyebrow">TACTICAL OPERATIONS / LIVE</div>
+<h1 id="heroTitle">Faction Command</h1>
+<p id="heroSub">Loading live faction intelligence…</p>
+</div>
+
+<div class="top-actions">
+<button id="refreshBtn" class="btn">↻ Refresh</button>
+<span id="updated" class="updated">—</span>
+</div>
+</header>
+
 <section id="overview" class="tab-panel active">
-  <div class="alert hidden" id="error"></div>
-  <div class="hero-grid">
-    <article class="command-card"><div class="card-label">CURRENT READINESS</div><div class="readiness"><div class="readiness-ring"><strong id="readiness">—</strong><small>LIVE</small></div><div><h2 id="readinessTitle">Awaiting data</h2><p id="readinessText">The command feed will update automatically.</p></div></div><div class="quick-actions"><a id="heroTorn" target="_blank" rel="noopener">Faction Page</a><a id="heroPda">TornPDA</a><a id="heroDiscord" target="_blank" rel="noopener">Discord</a></div></article>
-    <article class="panel"><div class="panel-head"><h2>Faction Intel</h2><span class="live">LIVE</span></div><div id="factionInfo" class="info-grid"></div></article>
-  </div>
-  <div class="kpis">
-    <article class="kpi"><span>Respect</span><strong id="respect">—</strong><small>Faction respect</small></article>
-    <article class="kpi"><span>Members</span><strong id="membersCount">—</strong><small id="capacitySmall">Capacity —</small></article>
-    <article class="kpi"><span>Chain</span><strong id="chain">—</strong><small>Current chain</small></article>
-    <article class="kpi"><span>Rank</span><strong id="rank">—</strong><small>Faction rank</small></article>
-    <article class="kpi"><span>OC</span><strong id="ocCount">—</strong><small>Crime records</small></article>
-    <article class="kpi"><span>Online</span><strong id="onlineCount">—</strong><small>Members active</small></article>
-  </div>
-  <div class="grid two">
-    <article class="panel"><div class="panel-head"><h2>Operations Feed</h2><span id="feedTime">—</span></div><div id="liveInfo" class="feed"></div></article>
-    <article class="panel"><div class="panel-head"><h2>Data Coverage</h2><span id="coverage">—</span></div><div id="coverageInfo" class="coverage"></div></article>
-  </div>
+
+<div class="alert hidden" id="error"></div>
+
+<div class="hero-grid">
+
+<article class="command-card">
+
+<div class="card-label">CURRENT READINESS</div>
+
+<div class="readiness">
+
+<div class="readiness-ring">
+<strong id="readiness">—</strong>
+<small>LIVE</small>
+</div>
+
+<div>
+<h2 id="readinessTitle">Awaiting data</h2>
+<p id="readinessText">
+The command feed will update automatically.
+</p>
+</div>
+
+</div>
+
+<div class="quick-actions">
+<a id="heroTorn" target="_blank" rel="noopener">Faction Page</a>
+<a id="heroPda">TornPDA</a>
+<a id="heroDiscord" target="_blank" rel="noopener">Discord</a>
+</div>
+
+</article>
+
+<article class="panel">
+
+<div class="panel-head">
+<h2>Faction Intel</h2>
+<span class="live">LIVE</span>
+</div>
+
+<div id="factionInfo" class="info-grid"></div>
+
+</article>
+
+</div>
+
+<div class="kpis">
+
+<article class="kpi">
+<span>Respect</span>
+<strong id="respect">—</strong>
+<small>Faction respect</small>
+</article>
+
+<article class="kpi">
+<span>Members</span>
+<strong id="membersCount">—</strong>
+<small id="capacitySmall">Capacity —</small>
+</article>
+
+<article class="kpi">
+<span>Chain</span>
+<strong id="chain">—</strong>
+<small>Current chain</small>
+</article>
+
+<article class="kpi">
+<span>Rank</span>
+<strong id="rank">—</strong>
+<small>Faction rank</small>
+</article>
+
+<article class="kpi">
+<span>OC</span>
+<strong id="ocCount">—</strong>
+<small>Crime records</small>
+</article>
+
+<article class="kpi">
+<span>Online</span>
+<strong id="onlineCount">—</strong>
+<small>Members active</small>
+</article>
+
+</div>
+
+<div class="grid two">
+
+<article class="panel">
+<div class="panel-head">
+<h2>Operations Feed</h2>
+<span id="feedTime">—</span>
+</div>
+<div id="liveInfo" class="feed"></div>
+</article>
+
+<article class="panel">
+<div class="panel-head">
+<h2>Data Coverage</h2>
+<span id="coverage">—</span>
+</div>
+<div id="coverageInfo" class="coverage"></div>
+</article>
+
+</div>
+
 </section>
-<section id="members" class="tab-panel"><article class="panel"><div class="panel-head"><div><h2>Members</h2><span class="muted">Live roster and status</span></div><input id="memberSearch" class="search" placeholder="Search name, role, status…"></div><div class="table-wrap"><table><thead><tr><th>Member</th><th>Level</th><th>Position</th><th>Life</th><th>Last action</th><th>Status</th></tr></thead><tbody id="membersTable"></tbody></table></div></article></section>
-<section id="chain" class="tab-panel"><div class="grid two"><article class="command-card chain-card"><div class="card-label">CHAIN STATUS</div><div class="chain-top"><div><div class="chain-number" id="chainBig">—</div><div class="chain-label">CURRENT HITS</div></div><span id="chainPhase" class="chain-phase waiting">WAITING</span></div><div class="chain-bar"><i id="chainBar"></i></div><div class="chain-meta"><span id="chainTimeout">Next hit —</span><span id="chainCooldown">Cooldown —</span></div></article><article class="panel"><div class="panel-head"><div><h2>Chain Intelligence</h2><span class="muted">Live chain state</span></div><span class="live">LIVE</span></div><div id="chainDetails" class="list"></div></article></div></section>
-<section id="crimes" class="tab-panel"><article class="panel"><div class="panel-head"><div><h2>Organized Crimes</h2><span class="muted">Planning, participants and status</span></div><span id="ocNote">—</span></div><div class="table-wrap"><table><thead><tr><th>Crime</th><th>Status</th><th>Created</th><th>Participants</th><th>Details</th></tr></thead><tbody id="crimesTable"></tbody></table></div></article></section>
-<section id="armory" class="tab-panel"><article class="panel"><div class="panel-head"><div><h2>Armory</h2><span class="muted">Inventory returned by your faction API access</span></div><input id="armorySearch" class="search" placeholder="Search item…"></div><div class="table-wrap"><table><thead><tr><th>Item</th><th>Type</th><th>Quantity</th><th>ID</th></tr></thead><tbody id="armoryTable"></tbody></table></div></article></section>
-<section id="wars" class="tab-panel"><div class="grid two"><article class="panel"><div class="panel-head"><h2>Ranked War</h2><span id="warBadge">—</span></div><div id="warInfo" class="list"></div></article><article class="panel"><div class="panel-head"><h2>Territory</h2></div><div id="territoryInfo" class="list"></div></article></div></section>
-<section id="activity" class="tab-panel"><div class="grid two"><article class="panel"><div class="panel-head"><h2>Applications</h2></div><div id="applicationsInfo" class="table-wrap"></div></article><article class="panel"><div class="panel-head"><h2>Reports</h2></div><div id="reportsInfo" class="table-wrap"></div></article><article class="panel"><div class="panel-head"><h2>Attacks</h2></div><div id="attacksInfo" class="table-wrap"></div></article><article class="panel"><div class="panel-head"><h2>Revives</h2></div><div id="revivesInfo" class="table-wrap"></div></article><article class="panel"><div class="panel-head"><h2>Contributors</h2></div><div id="contributorsInfo" class="table-wrap"></div></article><article class="panel"><div class="panel-head"><h2>Donations</h2></div><div id="donationsInfo" class="table-wrap"></div></article></div></section>
-<section id="upgrades" class="tab-panel"><article class="panel"><div class="panel-head"><h2>Faction Upgrades</h2><span>Live API data</span></div><div id="upgradesInfo" class="cards"></div></article></section>
-<footer>ORANGE // Faction Command <span>•</span> Last sync <b id="footerUpdated">—</b> <span>•</span> Auto-refresh 5m</footer>
-</main></div>
+
+<section id="members" class="tab-panel">
+
+<article class="panel">
+
+<div class="panel-head">
+
+<div>
+<h2>Members</h2>
+<span class="muted">Live roster and status</span>
+</div>
+
+<input
+id="memberSearch"
+class="search"
+placeholder="Search name, role, status…"
+>
+
+</div>
+
+<div class="table-wrap">
+
+<table>
+
+<thead>
+<tr>
+<th>Member</th>
+<th>Level</th>
+<th>Position</th>
+<th>Life</th>
+<th>Last action</th>
+<th>Status</th>
+</tr>
+</thead>
+
+<tbody id="membersTable"></tbody>
+
+</table>
+
+</div>
+
+</article>
+
+</section>
+
+<section id="chain" class="tab-panel">
+
+<div class="grid two">
+
+<article class="command-card chain-card">
+
+<div class="card-label">CHAIN STATUS</div>
+
+<div class="chain-top">
+
+<div>
+<div class="chain-number" id="chainBig">—</div>
+<div class="chain-label">CURRENT HITS</div>
+</div>
+
+<span id="chainPhase" class="chain-phase waiting">
+WAITING
+</span>
+
+</div>
+
+<div class="chain-bar">
+<i id="chainBar"></i>
+</div>
+
+<div class="chain-meta">
+<span id="chainTimeout">Next hit —</span>
+<span id="chainCooldown">Cooldown —</span>
+</div>
+
+</article>
+
+<article class="panel">
+
+<div class="panel-head">
+
+<div>
+<h2>Chain Intelligence</h2>
+<span class="muted">Live chain state</span>
+</div>
+
+<span class="live">LIVE</span>
+
+</div>
+
+<div id="chainDetails" class="list"></div>
+
+</article>
+
+</div>
+
+</section>
+
+<section id="crimes" class="tab-panel">
+
+<article class="panel">
+
+<div class="panel-head">
+
+<div>
+<h2>Organized Crimes</h2>
+<span class="muted">Planning, participants and status</span>
+</div>
+
+<span id="ocNote">—</span>
+
+</div>
+
+<div class="table-wrap">
+
+<table>
+
+<thead>
+<tr>
+<th>Crime</th>
+<th>Status</th>
+<th>Created</th>
+<th>Participants</th>
+<th>Details</th>
+</tr>
+</thead>
+
+<tbody id="crimesTable"></tbody>
+
+</table>
+
+</div>
+
+</article>
+
+</section>
+
+<section id="armory" class="tab-panel">
+
+<article class="panel">
+
+<div class="panel-head">
+
+<div>
+<h2>Armory</h2>
+<span class="muted">Inventory returned by your faction API access</span>
+</div>
+
+<input id="armorySearch" class="search" placeholder="Search item…">
+
+</div>
+
+<div class="table-wrap">
+
+<table>
+
+<thead>
+<tr>
+<th>Item</th>
+<th>Type</th>
+<th>Quantity</th>
+<th>ID</th>
+</tr>
+</thead>
+
+<tbody id="armoryTable"></tbody>
+
+</table>
+
+</div>
+
+</article>
+
+</section>
+
+<section id="wars" class="tab-panel">
+
+<div class="grid two">
+
+<article class="panel">
+
+<div class="panel-head">
+<h2>Ranked War</h2>
+<span id="warBadge">—</span>
+</div>
+
+<div id="warInfo" class="list"></div>
+
+</article>
+
+<article class="panel">
+
+<div class="panel-head">
+<h2>Territory</h2>
+</div>
+
+<div id="territoryInfo" class="list"></div>
+
+</article>
+
+</div>
+
+</section>
+
+<section id="activity" class="tab-panel">
+
+<div class="grid two">
+
+<article class="panel">
+<div class="panel-head"><h2>Applications</h2></div>
+<div id="applicationsInfo" class="table-wrap"></div>
+</article>
+
+<article class="panel">
+<div class="panel-head"><h2>Reports</h2></div>
+<div id="reportsInfo" class="table-wrap"></div>
+</article>
+
+<article class="panel">
+<div class="panel-head"><h2>Attacks</h2></div>
+<div id="attacksInfo" class="table-wrap"></div>
+</article>
+
+<article class="panel">
+<div class="panel-head"><h2>Revives</h2></div>
+<div id="revivesInfo" class="table-wrap"></div>
+</article>
+
+<article class="panel">
+<div class="panel-head"><h2>Contributors</h2></div>
+<div id="contributorsInfo" class="table-wrap"></div>
+</article>
+
+<article class="panel">
+<div class="panel-head"><h2>Donations</h2></div>
+<div id="donationsInfo" class="table-wrap"></div>
+</article>
+
+</div>
+
+</section>
+
+<section id="upgrades" class="tab-panel">
+
+<article class="panel">
+
+<div class="panel-head">
+<h2>Faction Upgrades</h2>
+<span>Live API data</span>
+</div>
+
+<div id="upgradesInfo" class="cards"></div>
+
+</article>
+
+</section>
+
+<footer>
+ORANGE // Faction Command
+<span>•</span>
+Last sync <b id="footerUpdated">—</b>
+<span>•</span>
+Auto-refresh 5m
+</footer>
+
+</main>
+
+</div>
+
 <script src="/assets/app.js"></script>
-</body></html>
+
+</body>
+</html>
