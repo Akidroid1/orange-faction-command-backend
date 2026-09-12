@@ -2,26 +2,16 @@ const TORN_API = 'https://api.torn.com/v2/faction/';
 const DEFAULT_FACTION_ID = '53295';
 
 /*
- * Current Torn API v2 faction selections.
- * Keep this list conservative so one unsupported selection
- * cannot break the entire dashboard.
+ * Start with only confirmed-working faction selections.
+ *
+ * "chains" is the current faction API selection.
+ * We intentionally leave the other feeds out for now
+ * so one bad selection cannot break the entire dashboard.
  */
 const SELECTIONS = [
   'basic',
   'members',
-  'chain',
-  'crimes',
-  'territory',
-  'upgrades',
-  'positions',
-  'applications',
-  'reports',
-  'attacks',
-  'revives',
-  'stats',
-  'wars',
-  'rankedwars',
-  'inventory'
+  'chains'
 ];
 
 const json = (data, status = 200, headers = {}) => {
@@ -60,26 +50,21 @@ function errorMessage(data, status) {
 async function tornFetch(id, apiKey) {
   const url = new URL(TORN_API);
 
-  url.searchParams.set('id', id);
+  url.searchParams.set(
+    'id',
+    id
+  );
 
   url.searchParams.set(
     'selections',
     SELECTIONS.join(',')
   );
 
-  /*
-   * Torn's faction crimes endpoint historically
-   * required a crime category when used with the
-   * generic faction endpoint.
-   *
-   * "all" is the safest option for the dashboard.
-   */
-  url.searchParams.set('cat', 'all');
-
   const response = await fetch(
     url.toString(),
     {
       method: 'GET',
+
       headers: {
         accept: 'application/json',
         authorization: `ApiKey ${apiKey}`
@@ -102,7 +87,10 @@ async function tornFetch(id, apiKey) {
     );
   }
 
-  if (!response.ok || data?.error) {
+  if (
+    !response.ok ||
+    data?.error
+  ) {
     throw Object.assign(
       new Error(
         errorMessage(
@@ -114,7 +102,8 @@ async function tornFetch(id, apiKey) {
         code: Number(
           data?.error?.code || 0
         ),
-        status: response.status
+        status:
+          response.status
       }
     );
   }
@@ -122,36 +111,34 @@ async function tornFetch(id, apiKey) {
   return data || {};
 }
 
-function normalize(data, id) {
+function normalize(
+  data,
+  id
+) {
   const result = {
     ...data
   };
 
   /*
-   * Normalize names used by the dashboard.
+   * The dashboard historically expects
+   * "chain", so convert Torn's current
+   * "chains" response into that name too.
    */
 
   if (
-    !result.rankedwar &&
-    result.rankedwars
+    !result.chain &&
+    result.chains
   ) {
-    result.rankedwar =
-      result.rankedwars;
-  }
-
-  if (
-    !result.armory &&
-    result.inventory
-  ) {
-    result.armory =
-      result.inventory;
+    result.chain =
+      result.chains;
   }
 
   return {
     ...result,
 
     _meta: {
-      faction_id: Number(id),
+      faction_id:
+        Number(id),
 
       fetched_at:
         new Date().toISOString(),
@@ -171,12 +158,16 @@ function normalize(data, id) {
   };
 }
 
-function memberArray(data) {
+function memberArray(
+  data
+) {
   const value =
     data?.members?.members ??
     data?.members;
 
-  if (Array.isArray(value)) {
+  if (
+    Array.isArray(value)
+  ) {
     return value;
   }
 
@@ -184,7 +175,9 @@ function memberArray(data) {
     value &&
     typeof value === 'object'
   ) {
-    return Object.values(value);
+    return Object.values(
+      value
+    );
   }
 
   return [];
@@ -197,12 +190,14 @@ function memberText(
   for (
     const path of paths
   ) {
-    const value = path
-      .split('.')
-      .reduce(
-        (a, k) => a?.[k],
-        member
-      );
+    const value =
+      path
+        .split('.')
+        .reduce(
+          (a, k) =>
+            a?.[k],
+          member
+        );
 
     if (
       value !== undefined &&
@@ -263,69 +258,72 @@ async function saveSnapshot(
   const members =
     memberArray(data);
 
-  if (members.length) {
+  if (
+    members.length
+  ) {
     const statements =
-      members.map(member => {
-        return env.DB.prepare(`
-          INSERT INTO member_snapshots
-          (
-            faction_id,
-            member_id,
-            name,
-            level,
-            position,
-            status,
-            last_action,
-            fetched_at,
-            payload
-          )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `)
-          .bind(
-            Number(id),
-
-            Number(
-              member.id || 0
-            ),
-
-            member.name ||
-              member.username ||
-              null,
-
-            member.level == null
-              ? null
-              : Number(
-                  member.level
-                ),
-
-            memberText(
-              member,
-              'position.name',
-              'position',
-              'role'
-            ),
-
-            memberText(
-              member,
-              'status.state',
-              'status',
-              'state'
-            ),
-
-            memberText(
-              member,
-              'last_action.relative',
-              'last_action.timestamp',
-              'last_action'
-            ),
-
-            fetchedAt,
-
-            JSON.stringify(
-              member
+      members.map(
+        member =>
+          env.DB.prepare(`
+            INSERT INTO member_snapshots
+            (
+              faction_id,
+              member_id,
+              name,
+              level,
+              position,
+              status,
+              last_action,
+              fetched_at,
+              payload
             )
-          );
-      });
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `)
+            .bind(
+              Number(id),
+
+              Number(
+                member.id || 0
+              ),
+
+              member.name ||
+                member.username ||
+                null,
+
+              member.level == null
+                ? null
+                : Number(
+                    member.level
+                  ),
+
+              memberText(
+                member,
+                'position.name',
+                'position',
+                'role'
+              ),
+
+              memberText(
+                member,
+                'status.state',
+                'status',
+                'state'
+              ),
+
+              memberText(
+                member,
+                'last_action.relative',
+                'last_action.timestamp',
+                'last_action'
+              ),
+
+              fetchedAt,
+
+              JSON.stringify(
+                member
+              )
+            )
+      );
 
     for (
       let i = 0;
@@ -342,8 +340,8 @@ async function saveSnapshot(
   }
 
   /*
-   * Keep roughly 2 weeks of
-   * 5-minute snapshots.
+   * Keep approximately
+   * 2 weeks of snapshots.
    */
   await env.DB.prepare(`
     DELETE FROM faction_snapshots
@@ -351,11 +349,8 @@ async function saveSnapshot(
     WHERE id NOT IN (
       SELECT id
       FROM faction_snapshots
-
       WHERE faction_id = ?
-
       ORDER BY fetched_at DESC
-
       LIMIT 2016
     )
 
@@ -454,9 +449,7 @@ async function currentFaction(
       SELECT
         fetched_at,
         payload
-
       FROM faction_current
-
       WHERE faction_id = ?
     `)
       .bind(
@@ -518,7 +511,8 @@ async function handleFaction(
   }
 
   /*
-   * Use database first.
+   * Use the stored database
+   * snapshot first.
    */
   const cached =
     await currentFaction(
@@ -630,10 +624,8 @@ async function handleHistory(
   const limit =
     Math.min(
       500,
-
       Math.max(
         1,
-
         Number(
           url.searchParams.get(
             'limit'
@@ -648,14 +640,9 @@ async function handleHistory(
         id,
         fetched_at,
         payload
-
       FROM faction_snapshots
-
       WHERE faction_id = ?
-
-      ORDER BY
-        fetched_at DESC
-
+      ORDER BY fetched_at DESC
       LIMIT ?
     `)
       .bind(
@@ -769,7 +756,6 @@ async function handleSync(
             error?.code
           ) || null
       },
-
       status
     );
   }
@@ -780,10 +766,9 @@ async function handleHealth(
 ) {
   const row =
     await env.DB.prepare(`
-      SELECT fetched_at
-
+      SELECT
+        fetched_at
       FROM faction_current
-
       WHERE faction_id = ?
     `)
       .bind(
@@ -800,11 +785,8 @@ async function handleHealth(
         finished_at,
         success,
         error
-
       FROM sync_log
-
       ORDER BY id DESC
-
       LIMIT 1
     `)
       .first();
