@@ -79,6 +79,10 @@ const pdaUrl =
   `tornpda://factions.php?step=profile&ID=${CONFIG.factionId}`;
 
 
+/* =========================
+   LINKS
+========================= */
+
 function setLinks() {
 
   const links = {
@@ -106,9 +110,9 @@ function setLinks() {
 }
 
 
-/* -------------------------
-   BASIC HELPERS
-------------------------- */
+/* =========================
+   GENERAL HELPERS
+========================= */
 
 function formatTime(value) {
 
@@ -231,9 +235,9 @@ function formatDuration(seconds) {
 }
 
 
-/* -------------------------
-   FACTION INFORMATION
-------------------------- */
+/* =========================
+   FACTION INFO
+========================= */
 
 function factionRank(basic) {
 
@@ -353,9 +357,9 @@ function leaderName(
 }
 
 
-/* -------------------------
+/* =========================
    CHAIN
-------------------------- */
+========================= */
 
 function chainState(chain) {
 
@@ -399,22 +403,22 @@ function chainState(chain) {
       Date.now() / 1000
     );
 
-  const cooldownRemaining =
-    cooldown > now
-      ? cooldown - now
-      : 0;
-
   return {
     current,
     max,
     timeout,
     cooldown,
-    cooldownRemaining
+    cooldownRemaining:
+      cooldown > now
+        ? cooldown - now
+        : 0
   };
 }
 
 
-function nextChainMilestone(current) {
+function nextChainMilestone(
+  current
+) {
 
   const milestones = [
     10,
@@ -450,14 +454,6 @@ function renderChain(chain) {
     nextChainMilestone(
       state.current
     );
-
-  /*
-   * A non-zero current chain is active
-   * unless the faction is currently on cooldown.
-   *
-   * This avoids incorrectly showing WAITING
-   * when Torn reports timeout = 0.
-   */
 
   const active =
     state.current > 0 &&
@@ -665,9 +661,323 @@ function renderChain(chain) {
 }
 
 
-/* -------------------------
+/* =========================
+   PREVIOUS CHAINS
+========================= */
+
+function normalizeCompletedChains(
+  source
+) {
+
+  if (!source) {
+    return [];
+  }
+
+  /*
+   * Torn may return completed chains
+   * as an array, an object keyed by ID,
+   * or a nested object.
+   */
+
+  if (
+    Array.isArray(source)
+  ) {
+    return source;
+  }
+
+  if (
+    source.chains
+  ) {
+    return arr(
+      source.chains
+    );
+  }
+
+  if (
+    source.data?.chains
+  ) {
+    return arr(
+      source.data.chains
+    );
+  }
+
+  if (
+    typeof source === 'object'
+  ) {
+    return Object.values(
+      source
+    );
+  }
+
+  return [];
+}
+
+
+function chainRecordValue(
+  chain,
+  ...paths
+) {
+
+  return get(
+    chain,
+    ...paths
+  );
+}
+
+
+function renderCompletedChains(
+  source
+) {
+
+  const chains =
+    normalizeCompletedChains(
+      source
+    );
+
+  let container =
+    $('#completedChains');
+
+
+  /*
+   * Create the Previous Chains
+   * panel underneath the current
+   * chain section if it isn't already
+   * present in index.html.
+   */
+
+  if (!container) {
+
+    const chainSection =
+      $('#chain');
+
+    if (!chainSection) {
+      return;
+    }
+
+    container =
+      document.createElement(
+        'article'
+      );
+
+    container.id =
+      'completedChains';
+
+    container.className =
+      'panel';
+
+    container.style.marginTop =
+      '18px';
+
+    chainSection.appendChild(
+      container
+    );
+  }
+
+
+  const sorted =
+    [...chains]
+      .sort(
+        (a, b) => {
+
+          const aTime =
+            Number(
+              chainRecordValue(
+                a,
+                'end',
+                'ended_at',
+                'completed_at'
+              )
+            ) || 0;
+
+          const bTime =
+            Number(
+              chainRecordValue(
+                b,
+                'end',
+                'ended_at',
+                'completed_at'
+              )
+            ) || 0;
+
+          return bTime - aTime;
+        }
+      );
+
+
+  container.innerHTML = `
+
+    <div class="panel-head">
+
+      <div>
+        <h2>Previous Chains</h2>
+
+        <span class="muted">
+          Completed faction chains
+        </span>
+      </div>
+
+      <span>
+        ${fmt(sorted.length)}
+      </span>
+
+    </div>
+
+    ${
+      sorted.length
+        ? `
+
+          <div class="table-wrap">
+
+            <table>
+
+              <thead>
+
+                <tr>
+                  <th>Chain</th>
+                  <th>Chain ID</th>
+                  <th>Start</th>
+                  <th>End</th>
+                  <th>Duration</th>
+                </tr>
+
+              </thead>
+
+              <tbody>
+
+                ${sorted
+                  .slice(0, 100)
+                  .map(
+                    chain => {
+
+                      const count =
+                        chainRecordValue(
+                          chain,
+                          'chain',
+                          'count',
+                          'hits',
+                          'total',
+                          'chain_length',
+                          'length'
+                        );
+
+                      const id =
+                        chainRecordValue(
+                          chain,
+                          'id',
+                          'chain_id'
+                        );
+
+                      const start =
+                        chainRecordValue(
+                          chain,
+                          'start',
+                          'started_at',
+                          'start_time'
+                        );
+
+                      const end =
+                        chainRecordValue(
+                          chain,
+                          'end',
+                          'ended_at',
+                          'end_time',
+                          'completed_at'
+                        );
+
+                      let duration =
+                        chainRecordValue(
+                          chain,
+                          'duration'
+                        );
+
+                      if (
+                        duration == null &&
+                        Number(start) &&
+                        Number(end)
+                      ) {
+                        duration =
+                          formatDuration(
+                            Number(end) -
+                            Number(start)
+                          );
+                      }
+
+                      return `
+
+                        <tr>
+
+                          <td>
+                            <b>
+                              ${esc(
+                                fmt(
+                                  count
+                                )
+                              )}
+                            </b>
+                          </td>
+
+                          <td>
+                            ${esc(
+                              id ?? '—'
+                            )}
+                          </td>
+
+                          <td>
+                            ${esc(
+                              formatTime(
+                                start
+                              )
+                            )}
+                          </td>
+
+                          <td>
+                            ${esc(
+                              formatTime(
+                                end
+                              )
+                            )}
+                          </td>
+
+                          <td>
+                            ${esc(
+                              duration ??
+                              '—'
+                            )}
+                          </td>
+
+                        </tr>
+
+                      `;
+                    }
+                  )
+                  .join('')}
+
+              </tbody>
+
+            </table>
+
+          </div>
+
+        `
+        : `
+
+          <div style="
+            padding:18px;
+            color:#777;
+          ">
+            No completed chains returned.
+          </div>
+
+        `
+    }
+
+  `;
+}
+
+
+/* =========================
    READINESS
-------------------------- */
+========================= */
 
 function calculateReadiness(
   members,
@@ -680,7 +990,9 @@ function calculateReadiness(
     members.length;
 
   const activeMembers =
-    stateCount(members);
+    stateCount(
+      members
+    );
 
   const chainValue =
     Number(
@@ -736,23 +1048,14 @@ function renderReadiness(
       rankedWar
     );
 
-  const value =
-    $('#readiness');
-
-  const title =
-    $('#readinessTitle');
-
-  const text =
-    $('#readinessText');
-
-  if (value) {
-    value.textContent =
+  if ($('#readiness')) {
+    $('#readiness').textContent =
       `${readiness}%`;
   }
 
-  if (title) {
+  if ($('#readinessTitle')) {
 
-    title.textContent =
+    $('#readinessTitle').textContent =
       readiness >= 75
         ? 'Combat ready'
         : readiness >= 45
@@ -760,9 +1063,9 @@ function renderReadiness(
           : 'Standby';
   }
 
-  if (text) {
+  if ($('#readinessText')) {
 
-    text.textContent =
+    $('#readinessText').textContent =
       `${members.length} members tracked • ` +
       `${crimes.length} OC records • ` +
       `${fmt(
@@ -775,11 +1078,13 @@ function renderReadiness(
 }
 
 
-/* -------------------------
+/* =========================
    MEMBER STATUS
-------------------------- */
+========================= */
 
-function stateCount(members) {
+function stateCount(
+  members
+) {
 
   return members.filter(
     member => {
@@ -804,7 +1109,9 @@ function stateCount(members) {
 }
 
 
-function memberLife(member) {
+function memberLife(
+  member
+) {
 
   const current =
     get(
@@ -842,7 +1149,9 @@ function memberLife(member) {
 }
 
 
-function memberStatus(member) {
+function memberStatus(
+  member
+) {
 
   return String(
     get(
@@ -855,9 +1164,9 @@ function memberStatus(member) {
 }
 
 
-/* -------------------------
+/* =========================
    MAIN RENDER
-------------------------- */
+========================= */
 
 function render(data) {
 
@@ -916,7 +1225,7 @@ function render(data) {
   }
 
 
-  /* Main statistics */
+  /* Statistics */
 
   const respect =
     get(
@@ -1048,10 +1357,27 @@ function render(data) {
   }
 
 
-  /* Chain */
+  /* Current chain */
 
   renderChain(
     chain
+  );
+
+
+  /* Previous chains */
+
+  /*
+   * The normal faction endpoint also
+   * supplies completed chains.
+   */
+
+  const completedChains =
+    data.chains ||
+    data.history ||
+    [];
+
+  renderCompletedChains(
+    completedChains
   );
 
 
@@ -1097,6 +1423,13 @@ function render(data) {
       ],
 
       [
+        'Completed chains',
+        normalizeCompletedChains(
+          completedChains
+        ).length
+      ],
+
+      [
         'Ranked war',
         rankedWar
           ? 'Available'
@@ -1108,11 +1441,6 @@ function render(data) {
         data.territory
           ? 'Available'
           : 'Unavailable'
-      ],
-
-      [
-        'Partial feeds',
-        data._meta?.partial_failures?.length || 0
       ]
 
     ]
@@ -1133,6 +1461,7 @@ function render(data) {
     'basic',
     'members',
     'chain',
+    'chains',
     'crimes',
     'rankedwar',
     'territory',
@@ -1168,8 +1497,6 @@ function render(data) {
         .join('');
   }
 
-
-  /* Tables */
 
   renderMembers(
     members
@@ -1229,8 +1556,6 @@ function render(data) {
   );
 
 
-  /* Time */
-
   const now =
     new Date()
       .toLocaleTimeString();
@@ -1255,9 +1580,9 @@ function render(data) {
 }
 
 
-/* -------------------------
+/* =========================
    MEMBERS
-------------------------- */
+========================= */
 
 function renderMembers(
   members
@@ -1375,9 +1700,9 @@ function renderMembers(
 }
 
 
-/* -------------------------
+/* =========================
    CRIMES
-------------------------- */
+========================= */
 
 function renderCrimes(
   crimes
@@ -1449,9 +1774,9 @@ function renderCrimes(
 }
 
 
-/* -------------------------
+/* =========================
    ARMORY
-------------------------- */
+========================= */
 
 function renderArmory(
   items
@@ -1521,9 +1846,9 @@ function renderArmory(
 }
 
 
-/* -------------------------
+/* =========================
    WAR / TERRITORY
-------------------------- */
+========================= */
 
 function renderWar(
   war
@@ -1620,9 +1945,9 @@ function renderTerritory(
 }
 
 
-/* -------------------------
+/* =========================
    UPGRADES
-------------------------- */
+========================= */
 
 function renderUpgrades(
   upgrades
@@ -1660,9 +1985,9 @@ function renderUpgrades(
 }
 
 
-/* -------------------------
+/* =========================
    GENERIC FEEDS
-------------------------- */
+========================= */
 
 function renderGeneric(
   id,
@@ -1708,7 +2033,9 @@ function renderGeneric(
 
   element.innerHTML =
     `<table>
+
       <thead>
+
         <tr>
           ${columns
             .map(
@@ -1722,13 +2049,16 @@ function renderGeneric(
             )
             .join('')}
         </tr>
+
       </thead>
 
       <tbody>
+
         ${sample
           .map(
             object =>
               `<tr>
+
                 ${columns
                   .map(
                     column =>
@@ -1743,18 +2073,20 @@ function renderGeneric(
                       )}</td>`
                   )
                   .join('')}
+
               </tr>`
           )
           .join('')}
+
       </tbody>
 
     </table>`;
 }
 
 
-/* -------------------------
-   NORMAL FACTION LOAD
-------------------------- */
+/* =========================
+   LOAD FACTION
+========================= */
 
 async function load() {
 
@@ -1770,11 +2102,6 @@ async function load() {
   if ($('#statusLine')) {
     $('#statusLine').textContent =
       'Syncing…';
-  }
-
-  if ($('#liveDot')) {
-    $('#liveDot').className =
-      'sync';
   }
 
   try {
@@ -1804,11 +2131,6 @@ async function load() {
         data._meta?.cached
           ? 'Live • database'
           : 'Live • synchronized';
-    }
-
-    if ($('#liveDot')) {
-      $('#liveDot').className =
-        '';
     }
 
     if (
@@ -1849,18 +2171,13 @@ async function load() {
       $('#statusLine').textContent =
         'API unavailable';
     }
-
-    if ($('#liveDot')) {
-      $('#liveDot').className =
-        'bad';
-    }
   }
 }
 
 
-/* -------------------------
-   LIVE CHAIN LOAD
-------------------------- */
+/* =========================
+   LIVE CHAIN
+========================= */
 
 async function loadLiveChain() {
 
@@ -1887,32 +2204,57 @@ async function loadLiveChain() {
     LIVE_CHAIN =
       data;
 
-    const chain =
-      data.chain || {};
 
-    /*
-     * Update ONLY chain-related UI here.
-     * This means the live chain can update
-     * every 5 seconds without waiting for
-     * the normal 5-minute faction sync.
-     */
+    /* Current chain */
 
     renderChain(
-      chain
+      data.chain || {}
     );
 
-    if (DATA && Object.keys(DATA).length) {
+
+    /*
+     * Previous chains from the
+     * live chain endpoint.
+     *
+     * We deliberately render them
+     * here too, so the Chain page
+     * doesn't depend on the 5-minute
+     * faction refresh.
+     */
+
+    const previousChains =
+      data.chains ||
+      data.history ||
+      [];
+
+    renderCompletedChains(
+      previousChains
+    );
+
+
+    /*
+     * Keep readiness synchronized
+     * with the live chain.
+     */
+
+    if (
+      DATA &&
+      Object.keys(DATA).length
+    ) {
 
       renderReadiness(
         arr(
           DATA.members?.members ||
           DATA.members
         ),
+
         arr(
           DATA.crimes?.crimes ||
           DATA.crimes
         ),
-        chain,
+
+        data.chain || {},
+
         DATA.rankedwar ||
         DATA.rankedwars ||
         null
@@ -1929,9 +2271,9 @@ async function loadLiveChain() {
 }
 
 
-/* -------------------------
-   EVENTS
-------------------------- */
+/* =========================
+   NAVIGATION
+========================= */
 
 setLinks();
 
@@ -1983,11 +2325,15 @@ document
   );
 
 
+/* Refresh */
+
 if ($('#refreshBtn')) {
   $('#refreshBtn').onclick =
     load;
 }
 
+
+/* Member search */
 
 if ($('#memberSearch')) {
 
@@ -2005,6 +2351,8 @@ if ($('#memberSearch')) {
 }
 
 
+/* Armory search */
+
 if ($('#armorySearch')) {
 
   $('#armorySearch')
@@ -2021,9 +2369,9 @@ if ($('#armorySearch')) {
 }
 
 
-/* -------------------------
+/* =========================
    START
-------------------------- */
+========================= */
 
 load();
 
