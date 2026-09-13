@@ -1,5 +1,4 @@
 const TORN_API = 'https://api.torn.com/v2/faction';
-const DEFAULT_FACTION_ID = '53295';
 
 const SELECTIONS = [
   'basic',
@@ -25,487 +24,357 @@ const LIVE_CHAIN_CACHE_MS = 4000;
 const liveChainCache = new Map();
 const liveChainInFlight = new Map();
 
-const json = (data, status = 200, headers = {}) => new Response(
-  JSON.stringify(data),
-  {
-    status,
-    headers: {
-      'content-type': 'application/json; charset=UTF-8',
-      'access-control-allow-origin': '*',
-      'cache-control': 'no-store',
-      ...headers
+function json(data, status = 200, headers = {}) {
+  return new Response(
+    JSON.stringify(data),
+    {
+      status,
+      headers: {
+        'content-type': 'application/json; charset=utf-8',
+        'cache-control': 'no-store',
+        ...headers
+      }
     }
-  }
-);
+  );
+}
 
 function factionId(value) {
-  const id = String(value || DEFAULT_FACTION_ID).trim();
-  return /^\d+$/.test(id) ? id : null;
+  const id = Number(value);
+
+  if (
+    !Number.isInteger(id) ||
+    id <= 0
+  ) {
+    return null;
+  }
+
+  return id;
 }
 
 function errorMessage(data, status) {
-  return data?.error?.error || data?.error || `Torn HTTP ${status}`;
+  return (
+    data?.error?.error ||
+    data?.error?.message ||
+    data?.message ||
+    `Torn returned HTTP ${status}`
+  );
+}
+
+function normalizeSelectionName(name) {
+  const map = {
+    rankedwars: 'rankedwar',
+    inventory: 'armory'
+  };
+
+  return map[name] || name;
 }
 
 async function tornFetch(id, apiKey) {
-  const url = new URL(`${TORN_API}/${id}`);
-  url.searchParams.set('selections', SELECTIONS.join(','));
+  const url =
+    new URL(`${TORN_API}/${id}`);
 
-  const response = await fetch(url, {
-    headers: {
-      accept: 'application/json',
-      authorization: `ApiKey ${apiKey}`
-    }
-  });
+  url.searchParams.set(
+    'selections',
+    SELECTIONS.join(',')
+  );
+
+  const response =
+    await fetch(
+      url,
+      {
+        headers: {
+          accept:
+            'application/json',
+          authorization:
+            `ApiKey ${apiKey}`
+        }
+      }
+    );
 
   let data;
 
   try {
-    data = await response.json();
+    data =
+      await response.json();
   } catch {
     throw Object.assign(
-      new Error(`Torn returned HTTP ${response.status}`),
-      { status: response.status }
-    );
-  }
-
-  if (!response.ok || data?.error) {
-    throw Object.assign(
-      new Error(errorMessage(data, response.status)),
+      new Error(
+        `Torn returned HTTP ${response.status}`
+      ),
       {
-        code: Number(data?.error?.code || 0),
-        status: response.status
+        status:
+          response.status
       }
     );
   }
-
-  return data || {};
-}
-
-function normalize(data, id) {
-  const result = { ...data };
-
-  if (!result.rankedwar && result.rankedwars) {
-    result.rankedwar = result.rankedwars;
-  }
-
-  if (!result.armory && result.inventory) {
-    result.armory = result.inventory;
-  }
-
-  result._meta = {
-    faction_id: Number(id),
-    fetched_at: new Date().toISOString(),
-    request_count: 1,
-    request_strategy: 'single-torn-request-to-backend-database',
-    selections: SELECTIONS,
-    cached: true,
-    partial_failures: []
-  };
-
-  return result;
-}
-
-function memberArray(data) {
-  const value = data?.members?.members ?? data?.members;
-
-  if (Array.isArray(value)) return value;
-
-  if (value && typeof value === 'object') {
-    return Object.values(value);
-  }
-
-  return [];
-}
-
-function memberText(member, ...paths) {
-  for (const path of paths) {
-    const value = path
-      .split('.')
-      .reduce((a, k) => a?.[k], member);
-
-    if (value !== undefined && value !== null) {
-      return String(value);
-    }
-  }
-
-  return null;
-}
-
-async function saveSnapshot(env, id, data, fetchedAt) {
-  await env.DB.prepare(`
-    INSERT INTO faction_snapshots
-    (faction_id, fetched_at, payload)
-    VALUES (?, ?, ?)
-  `)
-    .bind(
-      Number(id),
-      fetchedAt,
-      JSON.stringify(data)
-    )
-    .run();
-
-  await env.DB.prepare(`
-    INSERT INTO faction_current
-    (faction_id, fetched_at, payload)
-    VALUES (?, ?, ?)
-    ON CONFLICT(faction_id) DO UPDATE SET
-      fetched_at = excluded.fetched_at,
-      payload = excluded.payload
-  `)
-    .bind(
-      Number(id),
-      fetchedAt,
-      JSON.stringify(data)
-    )
-    .run();
-
-  const members = memberArray(data);
-
-  if (members.length) {
-    const statements = members.map(member =>
-      env.DB.prepare(`
-        INSERT INTO member_snapshots
-        (
-          faction_id,
-          member_id,
-          name,
-          level,
-          position,
-          status,
-          last_action,
-          fetched_at,
-          payload
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `)
-        .bind(
-          Number(id),
-          Number(member.id || 0),
-          member.name || member.username || null,
-          member.level == null ? null : Number(member.level),
-          memberText(
-            member,
-            'position.name',
-            'position',
-            'role'
-          ),
-          memberText(
-            member,
-            'status.state',
-            'status',
-            'state'
-          ),
-          memberText(
-            member,
-            'last_action.relative',
-            'last_action.timestamp',
-            'last_action'
-          ),
-          fetchedAt,
-          JSON.stringify(member)
-        )
-    );
-
-    for (let i = 0; i < statements.length; i += 50) {
-      await env.DB.batch(
-        statements.slice(i, i + 50)
-      );
-    }
-  }
-
-  await env.DB.prepare(`
-    DELETE FROM faction_snapshots
-    WHERE id NOT IN (
-      SELECT id
-      FROM faction_snapshots
-      WHERE faction_id = ?
-      ORDER BY fetched_at DESC
-      LIMIT 2016
-    )
-    AND faction_id = ?
-  `)
-    .bind(Number(id), Number(id))
-    .run();
-}
-
-
-/* =========================================================
-   LIVE CHAIN
-   ========================================================= */
-
-async function tornChainFetch(id, apiKey) {
-  const key = String(id);
-  const now = Date.now();
-
-  const cached = liveChainCache.get(key);
 
   if (
-    cached &&
-    now - cached.savedAt < LIVE_CHAIN_CACHE_MS
+    !response.ok ||
+    data?.error
   ) {
-    return cached.data;
-  }
-
-  if (liveChainInFlight.has(key)) {
-    return liveChainInFlight.get(key);
-  }
-
-  const promise = (async () => {
-    const url = new URL(`${TORN_API}/${id}`);
-
-    /* Only request the chain.
-       This keeps the live polling extremely light. */
-    url.searchParams.set('selections', 'chain');
-
-    const response = await fetch(url, {
-      headers: {
-        accept: 'application/json',
-        authorization: `ApiKey ${apiKey}`
-      }
-    });
-
-    let data;
-
-    try {
-      data = await response.json();
-    } catch {
-      throw Object.assign(
-        new Error(`Torn returned HTTP ${response.status}`),
-        { status: response.status }
-      );
-    }
-
-    if (!response.ok || data?.error) {
-      throw Object.assign(
-        new Error(errorMessage(data, response.status)),
-        {
-          code: Number(data?.error?.code || 0),
-          status: response.status
-        }
-      );
-    }
-
-    const chain = data?.chain ?? data ?? {};
-
-    const result = {
-      chain,
-      fetched_at: new Date().toISOString(),
-      request_strategy: 'live-chain-selection'
-    };
-
-    liveChainCache.set(key, {
-      savedAt: Date.now(),
-      data: result
-    });
-
-    return result;
-  })();
-
-  liveChainInFlight.set(key, promise);
-
-  try {
-    return await promise;
-  } finally {
-    liveChainInFlight.delete(key);
-  }
-}
-
-async function handleLiveChain(request, env) {
-  const url = new URL(request.url);
-
-  const id = factionId(
-    url.searchParams.get('faction_id') ||
-    env.FACTION_ID
-  );
-
-  if (!id) {
-    return json(
-      { error: 'Invalid faction_id.' },
-      400
-    );
-  }
-
-  if (!env.TORN_API_KEY) {
-    return json(
-      { error: 'TORN_API_KEY is not configured.' },
-      500
-    );
-  }
-
-  try {
-    const data = await tornChainFetch(
-      id,
-      env.TORN_API_KEY
-    );
-
-    return json(
-      {
-        faction_id: Number(id),
-        ...data
-      },
-      200,
-      {
-        'x-faction-source': 'torn-live-chain',
-        'x-chain-poll-ms': String(
-          LIVE_CHAIN_CACHE_MS
+    throw Object.assign(
+      new Error(
+        errorMessage(
+          data,
+          response.status
         )
-      }
-    );
-
-  } catch (error) {
-
-    const status =
-      Number(error?.code) === 5 ||
-      Number(error?.status) === 429
-        ? 429
-        : 502;
-
-    return json(
+      ),
       {
-        error:
-          error?.message ||
-          'Unable to retrieve live chain data.',
-        error_code:
-          Number(error?.code) || null,
-        faction_id: Number(id)
-      },
-      status,
-      {
-        'retry-after':
-          status === 429 ? '10' : '0'
+        code:
+          Number(
+            data?.error?.code || 0
+          ),
+        status:
+          response.status
       }
     );
   }
+
+  return data;
 }
 
+async function saveSnapshot(
+  env,
+  factionIdValue,
+  payload
+) {
+  const fetchedAt =
+    new Date().toISOString();
 
-/* =========================================================
-   NORMAL FACTION SYNC
-   ========================================================= */
-
-async function syncFaction(env, id) {
-  const started = new Date().toISOString();
-  let finished = null;
-
-  try {
-    const raw = await tornFetch(
-      id,
-      env.TORN_API_KEY
-    );
-
-    const data = normalize(raw, id);
-
-    finished = new Date().toISOString();
-
-    await saveSnapshot(
-      env,
-      id,
-      data,
-      finished
-    );
-
-    await env.DB.prepare(`
-      INSERT INTO sync_log
+  await env.DB.prepare(
+    `
+      INSERT INTO faction_snapshots
       (
-        started_at,
-        finished_at,
-        success,
-        request_count,
-        error
+        faction_id,
+        fetched_at,
+        payload
       )
-      VALUES (?, ?, 1, 1, NULL)
-    `)
-      .bind(
-        started,
-        finished
-      )
-      .run();
+      VALUES (?, ?, ?)
+    `
+  )
+    .bind(
+      factionIdValue,
+      fetchedAt,
+      JSON.stringify(payload)
+    )
+    .run();
 
-    return data;
-
-  } catch (error) {
-
-    finished = new Date().toISOString();
-
-    await env.DB.prepare(`
-      INSERT INTO sync_log
+  await env.DB.prepare(
+    `
+      INSERT INTO faction_current
       (
-        started_at,
-        finished_at,
-        success,
-        request_count,
-        error
+        faction_id,
+        fetched_at,
+        payload
       )
-      VALUES (?, ?, 0, 1, ?)
-    `)
-      .bind(
-        started,
-        finished,
-        error?.message || String(error)
-      )
-      .run();
+      VALUES (?, ?, ?)
+      ON CONFLICT(faction_id)
+      DO UPDATE SET
+        fetched_at = excluded.fetched_at,
+        payload = excluded.payload
+    `
+  )
+    .bind(
+      factionIdValue,
+      fetchedAt,
+      JSON.stringify(payload)
+    )
+    .run();
 
-    throw error;
-  }
+  return fetchedAt;
 }
 
-async function currentFaction(env, id) {
-  const row = await env.DB.prepare(`
-    SELECT fetched_at, payload
-    FROM faction_current
-    WHERE faction_id = ?
-  `)
-    .bind(Number(id))
-    .first();
+async function getCurrent(
+  env,
+  id
+) {
+  const row =
+    await env.DB.prepare(
+      `
+        SELECT
+          faction_id,
+          fetched_at,
+          payload
+        FROM faction_current
+        WHERE faction_id = ?
+        LIMIT 1
+      `
+    )
+      .bind(id)
+      .first();
 
   if (!row) {
     return null;
   }
 
+  let payload;
+
   try {
-    const data = JSON.parse(row.payload);
-
-    data._meta = {
-      ...(data._meta || {}),
-      fetched_at: row.fetched_at,
-      cached: true
-    };
-
-    return data;
-
+    payload =
+      JSON.parse(row.payload);
   } catch {
-    return null;
+    payload = {};
+  }
+
+  return {
+    ...payload,
+    _meta: {
+      ...(payload._meta || {}),
+      fetched_at:
+        row.fetched_at,
+      cached: true,
+      source:
+        'd1'
+    }
+  };
+}
+
+async function fetchFaction(
+  env,
+  id
+) {
+  const data =
+    await tornFetch(
+      id,
+      env.TORN_API_KEY
+    );
+
+  const partialFailures = [];
+
+  const normalized = {};
+
+  for (
+    const selection
+      of SELECTIONS
+  ) {
+    const key =
+      normalizeSelectionName(
+        selection
+      );
+
+    if (
+      data[key] !== undefined
+    ) {
+      normalized[key] =
+        data[key];
+    }
+  }
+
+  for (
+    const [key, value]
+      of Object.entries(data)
+  ) {
+    if (
+      key !== 'error' &&
+      normalized[key] === undefined
+    ) {
+      normalized[key] =
+        value;
+    }
+  }
+
+  normalized._meta = {
+    fetched_at:
+      new Date().toISOString(),
+    cached: false,
+    source:
+      'torn-api',
+    partial_failures:
+      partialFailures
+  };
+
+  return normalized;
+}
+
+async function syncFaction(
+  env,
+  id
+) {
+  const startedAt =
+    new Date().toISOString();
+
+  let requestCount = 1;
+  let success = 0;
+  let error = null;
+
+  try {
+    const payload =
+      await fetchFaction(
+        env,
+        id
+      );
+
+    await saveSnapshot(
+      env,
+      id,
+      payload
+    );
+
+    success = 1;
+
+    return payload;
+
+  } catch (x) {
+    error =
+      x?.message ||
+      String(x);
+
+    throw x;
+
+  } finally {
+    const finishedAt =
+      new Date().toISOString();
+
+    try {
+      await env.DB.prepare(
+        `
+          INSERT INTO sync_log
+          (
+            started_at,
+            finished_at,
+            success,
+            request_count,
+            error
+          )
+          VALUES (?, ?, ?, ?, ?)
+        `
+      )
+        .bind(
+          startedAt,
+          finishedAt,
+          success,
+          requestCount,
+          error
+        )
+        .run();
+    } catch {
+      // Do not replace the original Torn/API error.
+    }
   }
 }
 
-async function handleFaction(request, env) {
-  const url = new URL(request.url);
+async function handleFaction(
+  request,
+  env
+) {
+  const url =
+    new URL(request.url);
 
-  const id = factionId(
-    url.searchParams.get('faction_id') ||
-    env.FACTION_ID
-  );
+  const id =
+    factionId(
+      url.searchParams.get(
+        'faction_id'
+      ) ||
+      env.FACTION_ID
+    );
 
   if (!id) {
     return json(
-      { error: 'Invalid faction_id.' },
-      400
-    );
-  }
-
-  const data = await currentFaction(
-    env,
-    id
-  );
-
-  if (data) {
-    return json(
-      data,
-      200,
       {
-        'x-faction-source': 'database'
-      }
+        error:
+          'Invalid faction_id.'
+      },
+      400
     );
   }
 
@@ -520,145 +389,282 @@ async function handleFaction(request, env) {
   }
 
   try {
-
-    const fresh = await syncFaction(
-      env,
-      id
-    );
+    const payload =
+      await syncFaction(
+        env,
+        id
+      );
 
     return json(
-      fresh,
+      {
+        faction_id: id,
+        ...payload,
+        _meta: {
+          ...(payload._meta || {}),
+          cached: false,
+          source:
+            'torn-api'
+        }
+      },
       200,
       {
         'x-faction-source':
-          'torn-initial-sync'
+          'torn-api'
       }
     );
 
   } catch (error) {
+    const current =
+      await getCurrent(
+        env,
+        id
+      ).catch(
+        () => null
+      );
 
-    const status =
-      Number(error?.code) === 5 ||
-      Number(error?.status) === 429
-        ? 429
-        : 502;
+    if (current) {
+      return json(
+        {
+          ...current,
+          _meta: {
+            ...(current._meta || {}),
+            cached: true,
+            stale: true,
+            last_error:
+              error?.message ||
+              String(error)
+          }
+        },
+        200,
+        {
+          'x-faction-source':
+            'd1-stale'
+        }
+      );
+    }
 
     return json(
       {
         error:
           error?.message ||
-          'Unable to synchronize faction data.',
+          'Unable to retrieve faction data.',
         error_code:
-          Number(error?.code) || null,
-        faction_id: Number(id),
-        request_count: 1
+          Number(
+            error?.code
+          ) || null
       },
-      status,
+      Number(error?.code) === 5 ||
+      Number(error?.status) === 429
+        ? 429
+        : 502,
       {
         'retry-after':
-          status === 429 ? '60' : '0'
+          Number(error?.code) === 5 ||
+          Number(error?.status) === 429
+            ? '10'
+            : '0'
       }
     );
   }
 }
 
-async function handleHistory(request, env) {
-  const url = new URL(request.url);
+async function tornChainFetch(
+  id,
+  apiKey
+) {
+  const key =
+    String(id);
 
-  const id = factionId(
-    url.searchParams.get('faction_id') ||
-    env.FACTION_ID
-  );
+  const now =
+    Date.now();
 
-  if (!id) {
-    return json(
-      { error: 'Invalid faction_id.' },
-      400
-    );
-  }
-
-  const limit = Math.min(
-    500,
-    Math.max(
-      1,
-      Number(
-        url.searchParams.get('limit') || 100
-      )
-    )
-  );
-
-  const rows = await env.DB.prepare(`
-    SELECT id, fetched_at, payload
-    FROM faction_snapshots
-    WHERE faction_id = ?
-    ORDER BY fetched_at DESC
-    LIMIT ?
-  `)
-    .bind(
-      Number(id),
-      limit
-    )
-    .all();
-
-  return json({
-    faction_id: Number(id),
-    snapshots: rows.results || []
-  });
-}
-
-async function handleSync(request, env) {
-  if (request.method !== 'POST') {
-    return json(
-      { error: 'POST required.' },
-      405
-    );
-  }
-
-  const secret =
-    request.headers.get(
-      'x-admin-secret'
+  const cached =
+    liveChainCache.get(
+      key
     );
 
   if (
-    !env.SYNC_SECRET ||
-    secret !== env.SYNC_SECRET
+    cached &&
+    now - cached.savedAt <
+      LIVE_CHAIN_CACHE_MS
   ) {
-    return json(
-      { error: 'Unauthorized.' },
-      401
+    return cached.data;
+  }
+
+  if (
+    liveChainInFlight.has(
+      key
+    )
+  ) {
+    return liveChainInFlight.get(
+      key
     );
   }
 
-  const url = new URL(request.url);
+  const promise =
+    (async () => {
+      const url =
+        new URL(
+          `${TORN_API}/${id}`
+        );
 
-  const id = factionId(
-    url.searchParams.get('faction_id') ||
-    env.FACTION_ID
+      url.searchParams.set(
+        'selections',
+        'chain'
+      );
+
+      const response =
+        await fetch(
+          url,
+          {
+            headers: {
+              accept:
+                'application/json',
+              authorization:
+                `ApiKey ${apiKey}`
+            }
+          }
+        );
+
+      let data;
+
+      try {
+        data =
+          await response.json();
+      } catch {
+        throw Object.assign(
+          new Error(
+            `Torn returned HTTP ${response.status}`
+          ),
+          {
+            status:
+              response.status
+          }
+        );
+      }
+
+      if (
+        !response.ok ||
+        data?.error
+      ) {
+        throw Object.assign(
+          new Error(
+            errorMessage(
+              data,
+              response.status
+            )
+          ),
+          {
+            code:
+              Number(
+                data?.error?.code || 0
+              ),
+            status:
+              response.status
+          }
+        );
+      }
+
+      const chain =
+        data?.chain ??
+        data ??
+        {};
+
+      const result = {
+        chain,
+        fetched_at:
+          new Date().toISOString(),
+        request_strategy:
+          'live-chain-selection'
+      };
+
+      liveChainCache.set(
+        key,
+        {
+          savedAt:
+            Date.now(),
+          data:
+            result
+        }
+      );
+
+      return result;
+    })();
+
+  liveChainInFlight.set(
+    key,
+    promise
   );
+
+  try {
+    return await promise;
+  } finally {
+    liveChainInFlight.delete(
+      key
+    );
+  }
+}
+
+async function handleLiveChain(
+  request,
+  env
+) {
+  const url =
+    new URL(request.url);
+
+  const id =
+    factionId(
+      url.searchParams.get(
+        'faction_id'
+      ) ||
+      env.FACTION_ID
+    );
 
   if (!id) {
     return json(
-      { error: 'Invalid faction_id.' },
+      {
+        error:
+          'Invalid faction_id.'
+      },
       400
+    );
+  }
+
+  if (!env.TORN_API_KEY) {
+    return json(
+      {
+        error:
+          'TORN_API_KEY is not configured.'
+      },
+      500
     );
   }
 
   try {
+    const data =
+      await tornChainFetch(
+        id,
+        env.TORN_API_KEY
+      );
 
-    const data = await syncFaction(
-      env,
-      id
+    return json(
+      {
+        faction_id:
+          Number(id),
+        ...data
+      },
+      200,
+      {
+        'x-faction-source':
+          'torn-live-chain',
+        'x-chain-poll-ms':
+          String(
+            LIVE_CHAIN_CACHE_MS
+          )
+      }
     );
 
-    return json({
-      ok: true,
-      faction_id: Number(id),
-      fetched_at:
-        data._meta.fetched_at
-    });
-
   } catch (error) {
-
     const status =
       Number(error?.code) === 5 ||
       Number(error?.status) === 429
@@ -669,156 +675,148 @@ async function handleSync(request, env) {
       {
         error:
           error?.message ||
-          'Sync failed.',
+          'Unable to retrieve live chain data.',
         error_code:
-          Number(error?.code) || null
+          Number(
+            error?.code
+          ) || null,
+        faction_id:
+          Number(id)
       },
-      status
+      status,
+      {
+        'retry-after':
+          status === 429
+            ? '10'
+            : '0'
+      }
     );
   }
 }
 
-async function handleHealth(env) {
-  const row = await env.DB.prepare(`
-    SELECT fetched_at
-    FROM faction_current
-    WHERE faction_id = ?
-  `)
-    .bind(
-      Number(
-        env.FACTION_ID ||
-        DEFAULT_FACTION_ID
-      )
-    )
-    .first();
+async function handleHealth(
+  env
+) {
+  let database =
+    'ok';
 
-  const log = await env.DB.prepare(`
-    SELECT finished_at, success, error
-    FROM sync_log
-    ORDER BY id DESC
-    LIMIT 1
-  `).first();
+  try {
+    await env.DB.prepare(
+      'SELECT 1'
+    ).first();
+  } catch {
+    database =
+      'error';
+  }
 
-  return json({
-    ok: true,
-    service:
-      'orange-faction-backend',
-    database: true,
-    last_sync:
-      row?.fetched_at || null,
-    last_sync_result:
-      log
-        ? {
-            finished_at:
-              log.finished_at,
-            success:
-              Boolean(log.success),
-            error:
-              log.error
-          }
-        : null,
-    time:
-      new Date().toISOString()
-  });
+  return json(
+    {
+      ok:
+        database === 'ok',
+      database,
+      faction_id:
+        factionId(
+          env.FACTION_ID
+        ),
+      live_chain:
+        true
+    }
+  );
 }
 
+async function handleApi(
+  request,
+  env
+) {
+  const url =
+    new URL(request.url);
 
-/* =========================================================
-   ROUTES
-   ========================================================= */
+  if (
+    url.pathname ===
+    '/api/faction'
+  ) {
+    return handleFaction(
+      request,
+      env
+    );
+  }
+
+  if (
+    url.pathname ===
+    '/api/chain'
+  ) {
+    return handleLiveChain(
+      request,
+      env
+    );
+  }
+
+  if (
+    url.pathname ===
+    '/api/health'
+  ) {
+    return handleHealth(
+      env
+    );
+  }
+
+  return null;
+}
 
 export default {
-
-  async fetch(request, env) {
-
-    const url =
-      new URL(request.url);
-
-    try {
-
-      if (
-        url.pathname ===
-        '/api/faction'
-      ) {
-        return await handleFaction(
-          request,
-          env
-        );
-      }
-
-      if (
-        url.pathname ===
-        '/api/chain'
-      ) {
-        return await handleLiveChain(
-          request,
-          env
-        );
-      }
-
-      if (
-        url.pathname ===
-        '/api/history'
-      ) {
-        return await handleHistory(
-          request,
-          env
-        );
-      }
-
-      if (
-        url.pathname ===
-        '/api/sync'
-      ) {
-        return await handleSync(
-          request,
-          env
-        );
-      }
-
-      if (
-        url.pathname ===
-        '/api/health'
-      ) {
-        return await handleHealth(
-          env
-        );
-      }
-
-      return env.ASSETS.fetch(
-        request
-      );
-
-    } catch (error) {
-
-      return json(
-        {
-          error:
-            error?.message ||
-            'Backend error.'
-        },
-        500
-      );
-    }
-  },
-
-
-  async scheduled(
-    controller,
+  async fetch(
+    request,
     env,
     ctx
   ) {
+    const url =
+      new URL(
+        request.url
+      );
 
+    if (
+      url.pathname.startsWith(
+        '/api/'
+      )
+    ) {
+      const response =
+        await handleApi(
+          request,
+          env
+        );
+
+      if (response) {
+        return response;
+      }
+    }
+
+    if (
+      env.ASSETS
+    ) {
+      return env.ASSETS.fetch(
+        request
+      );
+    }
+
+    return new Response(
+      'ORANGE Faction Command Center',
+      {
+        status: 404
+      }
+    );
+  },
+
+  async scheduled(
+    event,
+    env,
+    ctx
+  ) {
     const id =
       factionId(
         env.FACTION_ID
-      ) ||
-      DEFAULT_FACTION_ID;
+      );
 
-    if (
-      !env.TORN_API_KEY ||
-      !env.DB
-    ) {
+    if (!id) {
       return;
     }
 
@@ -826,7 +824,14 @@ export default {
       syncFaction(
         env,
         id
-      ).catch(() => {})
+      ).catch(
+        error => {
+          console.error(
+            'Scheduled faction sync failed:',
+            error
+          );
+        }
+      )
     );
   }
 };
