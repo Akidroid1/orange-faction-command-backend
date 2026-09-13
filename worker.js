@@ -23,6 +23,7 @@ const LIVE_CHAIN_CACHE_MS = 4000;
 
 const liveChainCache = new Map();
 const liveChainInFlight = new Map();
+const chainHistoryReady = new Map();
 
 function json(data, status = 200, headers = {}) {
   return new Response(
@@ -32,6 +33,7 @@ function json(data, status = 200, headers = {}) {
       headers: {
         'content-type': 'application/json; charset=utf-8',
         'cache-control': 'no-store',
+        'access-control-allow-origin': '*',
         ...headers
       }
     }
@@ -41,10 +43,7 @@ function json(data, status = 200, headers = {}) {
 function factionId(value) {
   const id = Number(value);
 
-  if (
-    !Number.isInteger(id) ||
-    id <= 0
-  ) {
+  if (!Number.isInteger(id) || id <= 0) {
     return null;
   }
 
@@ -69,49 +68,66 @@ function normalizeSelectionName(name) {
   return map[name] || name;
 }
 
+function numberValue(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function chainNumber(chain, ...keys) {
+  for (const key of keys) {
+    const value =
+      key.split('.').reduce(
+        (obj, part) => obj?.[part],
+        chain
+      );
+
+    if (
+      value !== undefined &&
+      value !== null &&
+      value !== '' &&
+      Number.isFinite(Number(value))
+    ) {
+      return Number(value);
+    }
+  }
+
+  return 0;
+}
+
 async function tornFetch(id, apiKey) {
-  const url =
-    new URL(`${TORN_API}/${id}`);
+  const url = new URL(`${TORN_API}/${id}`);
 
   url.searchParams.set(
     'selections',
     SELECTIONS.join(',')
   );
 
-  const response =
-    await fetch(
-      url,
-      {
-        headers: {
-          accept:
-            'application/json',
-          authorization:
-            `ApiKey ${apiKey}`
-        }
+  const response = await fetch(
+    url,
+    {
+      headers: {
+        accept: 'application/json',
+        authorization: `ApiKey ${apiKey}`
       }
-    );
+    }
+  );
 
   let data;
 
   try {
-    data =
-      await response.json();
+    data = await response.json();
   } catch {
     throw Object.assign(
       new Error(
         `Torn returned HTTP ${response.status}`
       ),
       {
-        status:
-          response.status
+        status: response.status
       }
     );
   }
 
-  if (
-    !response.ok ||
-    data?.error
-  ) {
+  if (!response.ok || data?.error) {
     throw Object.assign(
       new Error(
         errorMessage(
@@ -121,9 +137,7 @@ async function tornFetch(id, apiKey) {
       ),
       {
         code:
-          Number(
-            data?.error?.code || 0
-          ),
+          Number(data?.error?.code || 0),
         status:
           response.status
       }
@@ -240,12 +254,10 @@ async function fetchFaction(
     );
 
   const partialFailures = [];
-
   const normalized = {};
 
   for (
-    const selection
-      of SELECTIONS
+    const selection of SELECTIONS
   ) {
     const key =
       normalizeSelectionName(
@@ -348,8 +360,478 @@ async function syncFaction(
         )
         .run();
     } catch {
-      // Do not replace the original Torn/API error.
+      // Preserve the original error.
     }
+  }
+}
+
+/* =========================================================
+   CHAIN HISTORY
+   ========================================================= */
+
+async function ensureChainHistory(env) {
+  const key = 'ready';
+
+  if (chainHistoryReady.has(key)) {
+    return chainHistoryReady.get(key);
+  }
+
+  const promise =
+    (async () => {
+      await env.DB.prepare(
+        `
+          CREATE TABLE IF NOT EXISTS chain_state (
+            faction_id INTEGER PRIMARY KEY,
+            chain_id TEXT,
+            current_chain INTEGER NOT NULL DEFAULT 0,
+            peak_chain INTEGER NOT NULL DEFAULT 0,
+            started_at TEXT,
+            updated_at TEXT NOT NULL
+          )
+        `
+      ).run();
+
+      await env.DB.prepare(
+        `
+          CREATE TABLE IF NOT EXISTS chain_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            faction_id INTEGER NOT NULL,
+            chain_id TEXT,
+            chain_count INTEGER NOT NULL DEFAULT 0,
+            peak_chain INTEGER NOT NULL DEFAULT 0,
+            started_at TEXT,
+            ended_at TEXT NOT NULL,
+            duration_seconds INTEGER NOT NULL DEFAULT 0,
+            modifier TEXT
+          )
+        `
+      ).run();
+
+      await env.DB.prepare(
+        `
+          CREATE INDEX IF NOT EXISTS
+          idx_chain_history_faction_time
+          ON chain_history
+          (
+            faction_id,
+            ended_at DESC
+          )
+        `
+      ).run();
+    })();
+
+  chainHistoryReady.set(
+    key,
+    promise
+  );
+
+  try {
+    await promise;
+  } catch (error) {
+    chainHistoryReady.delete(key);
+    throw error;
+  }
+
+  return promise;
+}
+
+async function recordChainState(
+  env,
+  factionIdValue,
+  chain
+) {
+  await ensureChainHistory(env);
+
+  const current =
+    chainNumber(
+      chain,
+      'current',
+      'current_chain',
+      'chain'
+    );
+
+  const chainIdRaw =
+    chain?.id ??
+    chain?.chain_id ??
+    chain?.chain?.id ??
+    null;
+
+  const chainId =
+    chainIdRaw == null
+      ? null
+      : String(chainIdRaw);
+
+  const now =
+    new Date().toISOString();
+
+  const existing =
+    await env.DB.prepare(
+      `
+        SELECT
+          faction_id,
+          chain_id,
+          current_chain,
+          peak_chain,
+          started_at,
+          updated_at
+        FROM chain_state
+        WHERE faction_id = ?
+        LIMIT 1
+      `
+    )
+      .bind(factionIdValue)
+      .first();
+
+  if (!existing) {
+    await env.DB.prepare(
+      `
+        INSERT INTO chain_state
+        (
+          faction_id,
+          chain_id,
+          current_chain,
+          peak_chain,
+          started_at,
+          updated_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?)
+      `
+    )
+      .bind(
+        factionIdValue,
+        chainId,
+        current,
+        current,
+        current > 0 ? now : null,
+        now
+      )
+      .run();
+
+    return;
+  }
+
+  const previousCurrent =
+    numberValue(
+      existing.current_chain
+    );
+
+  const previousPeak =
+    numberValue(
+      existing.peak_chain
+    );
+
+  const previousStarted =
+    existing.started_at;
+
+  const chainChanged =
+    chainId &&
+    existing.chain_id &&
+    chainId !==
+      String(existing.chain_id);
+
+  const chainFinished =
+    previousCurrent > 0 &&
+    current === 0;
+
+  /*
+   * If Torn gives us a new chain ID while
+   * the old chain was still above zero,
+   * close the old chain as well.
+   */
+  if (
+    chainFinished ||
+    chainChanged
+  ) {
+    const endedAt =
+      now;
+
+    let durationSeconds = 0;
+
+    if (previousStarted) {
+      durationSeconds =
+        Math.max(
+          0,
+          Math.floor(
+            (
+              Date.parse(endedAt) -
+              Date.parse(previousStarted)
+            ) / 1000
+          )
+        );
+    }
+
+    await env.DB.prepare(
+      `
+        INSERT INTO chain_history
+        (
+          faction_id,
+          chain_id,
+          chain_count,
+          peak_chain,
+          started_at,
+          ended_at,
+          duration_seconds,
+          modifier
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `
+    )
+      .bind(
+        factionIdValue,
+        existing.chain_id
+          ? String(existing.chain_id)
+          : null,
+        previousCurrent,
+        Math.max(
+          previousCurrent,
+          previousPeak
+        ),
+        previousStarted,
+        endedAt,
+        durationSeconds,
+        chain?.modifier != null
+          ? String(chain.modifier)
+          : null
+      )
+      .run();
+  }
+
+  let nextStarted =
+    previousStarted;
+
+  if (
+    current > 0 &&
+    (
+      previousCurrent === 0 ||
+      chainChanged ||
+      !nextStarted
+    )
+  ) {
+    nextStarted =
+      now;
+  }
+
+  const nextPeak =
+    current > 0
+      ? Math.max(
+          previousPeak,
+          current
+        )
+      : 0;
+
+  await env.DB.prepare(
+    `
+      INSERT INTO chain_state
+      (
+        faction_id,
+        chain_id,
+        current_chain,
+        peak_chain,
+        started_at,
+        updated_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?)
+      ON CONFLICT(faction_id)
+      DO UPDATE SET
+        chain_id =
+          excluded.chain_id,
+        current_chain =
+          excluded.current_chain,
+        peak_chain =
+          excluded.peak_chain,
+        started_at =
+          excluded.started_at,
+        updated_at =
+          excluded.updated_at
+    `
+  )
+    .bind(
+      factionIdValue,
+      chainId,
+      current,
+      nextPeak,
+      nextStarted,
+      now
+    )
+    .run();
+}
+
+async function getChainHistory(
+  env,
+  id
+) {
+  await ensureChainHistory(env);
+
+  const result =
+    await env.DB.prepare(
+      `
+        SELECT
+          id,
+          faction_id,
+          chain_id,
+          chain_count,
+          peak_chain,
+          started_at,
+          ended_at,
+          duration_seconds,
+          modifier
+        FROM chain_history
+        WHERE faction_id = ?
+        ORDER BY ended_at DESC
+        LIMIT 50
+      `
+    )
+      .bind(id)
+      .all();
+
+  return result.results || [];
+}
+
+async function tornChainFetch(
+  id,
+  apiKey,
+  env
+) {
+  const key =
+    String(id);
+
+  const now =
+    Date.now();
+
+  const cached =
+    liveChainCache.get(key);
+
+  if (
+    cached &&
+    now - cached.savedAt <
+      LIVE_CHAIN_CACHE_MS
+  ) {
+    return cached.data;
+  }
+
+  if (
+    liveChainInFlight.has(key)
+  ) {
+    return liveChainInFlight.get(key);
+  }
+
+  const promise =
+    (async () => {
+      const url =
+        new URL(
+          `${TORN_API}/${id}`
+        );
+
+      url.searchParams.set(
+        'selections',
+        'chain'
+      );
+
+      const response =
+        await fetch(
+          url,
+          {
+            headers: {
+              accept:
+                'application/json',
+              authorization:
+                `ApiKey ${apiKey}`
+            }
+          }
+        );
+
+      let data;
+
+      try {
+        data =
+          await response.json();
+      } catch {
+        throw Object.assign(
+          new Error(
+            `Torn returned HTTP ${response.status}`
+          ),
+          {
+            status:
+              response.status
+          }
+        );
+      }
+
+      if (
+        !response.ok ||
+        data?.error
+      ) {
+        throw Object.assign(
+          new Error(
+            errorMessage(
+              data,
+              response.status
+            )
+          ),
+          {
+            code:
+              Number(
+                data?.error?.code || 0
+              ),
+            status:
+              response.status
+          }
+        );
+      }
+
+      const chain =
+        data?.chain ??
+        data ??
+        {};
+
+      /*
+       * Record the live state before returning it.
+       * This is what allows completed chains to
+       * survive after Torn resets the live chain.
+       */
+      await recordChainState(
+        env,
+        id,
+        chain
+      );
+
+      const history =
+        await getChainHistory(
+          env,
+          id
+        );
+
+      const result = {
+        chain,
+        history,
+        fetched_at:
+          new Date().toISOString(),
+        request_strategy:
+          'live-chain-selection'
+      };
+
+      liveChainCache.set(
+        key,
+        {
+          savedAt:
+            Date.now(),
+          data:
+            result
+        }
+      );
+
+      return result;
+    })();
+
+  liveChainInFlight.set(
+    key,
+    promise
+  );
+
+  try {
+    return await promise;
+  } finally {
+    liveChainInFlight.delete(key);
   }
 }
 
@@ -449,9 +931,7 @@ async function handleFaction(
           error?.message ||
           'Unable to retrieve faction data.',
         error_code:
-          Number(
-            error?.code
-          ) || null
+          Number(error?.code) || null
       },
       Number(error?.code) === 5 ||
       Number(error?.status) === 429
@@ -464,143 +944,6 @@ async function handleFaction(
             ? '10'
             : '0'
       }
-    );
-  }
-}
-
-async function tornChainFetch(
-  id,
-  apiKey
-) {
-  const key =
-    String(id);
-
-  const now =
-    Date.now();
-
-  const cached =
-    liveChainCache.get(
-      key
-    );
-
-  if (
-    cached &&
-    now - cached.savedAt <
-      LIVE_CHAIN_CACHE_MS
-  ) {
-    return cached.data;
-  }
-
-  if (
-    liveChainInFlight.has(
-      key
-    )
-  ) {
-    return liveChainInFlight.get(
-      key
-    );
-  }
-
-  const promise =
-    (async () => {
-      const url =
-        new URL(
-          `${TORN_API}/${id}`
-        );
-
-      url.searchParams.set(
-        'selections',
-        'chain'
-      );
-
-      const response =
-        await fetch(
-          url,
-          {
-            headers: {
-              accept:
-                'application/json',
-              authorization:
-                `ApiKey ${apiKey}`
-            }
-          }
-        );
-
-      let data;
-
-      try {
-        data =
-          await response.json();
-      } catch {
-        throw Object.assign(
-          new Error(
-            `Torn returned HTTP ${response.status}`
-          ),
-          {
-            status:
-              response.status
-          }
-        );
-      }
-
-      if (
-        !response.ok ||
-        data?.error
-      ) {
-        throw Object.assign(
-          new Error(
-            errorMessage(
-              data,
-              response.status
-            )
-          ),
-          {
-            code:
-              Number(
-                data?.error?.code || 0
-              ),
-            status:
-              response.status
-          }
-        );
-      }
-
-      const chain =
-        data?.chain ??
-        data ??
-        {};
-
-      const result = {
-        chain,
-        fetched_at:
-          new Date().toISOString(),
-        request_strategy:
-          'live-chain-selection'
-      };
-
-      liveChainCache.set(
-        key,
-        {
-          savedAt:
-            Date.now(),
-          data:
-            result
-        }
-      );
-
-      return result;
-    })();
-
-  liveChainInFlight.set(
-    key,
-    promise
-  );
-
-  try {
-    return await promise;
-  } finally {
-    liveChainInFlight.delete(
-      key
     );
   }
 }
@@ -644,7 +987,8 @@ async function handleLiveChain(
     const data =
       await tornChainFetch(
         id,
-        env.TORN_API_KEY
+        env.TORN_API_KEY,
+        env
       );
 
     return json(
@@ -665,28 +1009,24 @@ async function handleLiveChain(
     );
 
   } catch (error) {
-    const status =
-      Number(error?.code) === 5 ||
-      Number(error?.status) === 429
-        ? 429
-        : 502;
-
     return json(
       {
         error:
           error?.message ||
           'Unable to retrieve live chain data.',
         error_code:
-          Number(
-            error?.code
-          ) || null,
+          Number(error?.code) || null,
         faction_id:
           Number(id)
       },
-      status,
+      Number(error?.code) === 5 ||
+      Number(error?.status) === 429
+        ? 429
+        : 502,
       {
         'retry-after':
-          status === 429
+          Number(error?.code) === 5 ||
+          Number(error?.status) === 429
             ? '10'
             : '0'
       }
@@ -694,9 +1034,58 @@ async function handleLiveChain(
   }
 }
 
-async function handleHealth(
+async function handleChainHistory(
+  request,
   env
 ) {
+  const url =
+    new URL(request.url);
+
+  const id =
+    factionId(
+      url.searchParams.get(
+        'faction_id'
+      ) ||
+      env.FACTION_ID
+    );
+
+  if (!id) {
+    return json(
+      {
+        error:
+          'Invalid faction_id.'
+      },
+      400
+    );
+  }
+
+  try {
+    const history =
+      await getChainHistory(
+        env,
+        id
+      );
+
+    return json(
+      {
+        faction_id:
+          id,
+        history
+      }
+    );
+  } catch (error) {
+    return json(
+      {
+        error:
+          error?.message ||
+          'Unable to retrieve chain history.'
+      },
+      500
+    );
+  }
+}
+
+async function handleHealth(env) {
   let database =
     'ok';
 
@@ -719,6 +1108,8 @@ async function handleHealth(
           env.FACTION_ID
         ),
       live_chain:
+        true,
+      chain_history:
         true
     }
   );
@@ -746,6 +1137,16 @@ async function handleApi(
     '/api/chain'
   ) {
     return handleLiveChain(
+      request,
+      env
+    );
+  }
+
+  if (
+    url.pathname ===
+    '/api/chain-history'
+  ) {
+    return handleChainHistory(
       request,
       env
     );
@@ -790,9 +1191,7 @@ export default {
       }
     }
 
-    if (
-      env.ASSETS
-    ) {
+    if (env.ASSETS) {
       return env.ASSETS.fetch(
         request
       );
