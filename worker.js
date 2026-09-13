@@ -4,6 +4,7 @@ const SELECTIONS = [
   "basic",
   "members",
   "chain",
+  "chains",
   "crimes",
   "rankedwars",
   "territory",
