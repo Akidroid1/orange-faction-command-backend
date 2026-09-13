@@ -1,14 +1,19 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#0a0d12"><title>ORANGE // Faction Command</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0a0d12">
+<title>ORANGE // Faction Command</title>
 <link rel="stylesheet" href="/assets/style.css">
 </head>
+
 <body>
+
 <div class="shell">
 
 <aside class="sidebar">
+
   <div class="brand">
     <div class="brand-mark">OR</div>
     <div>
@@ -23,14 +28,37 @@
   </div>
 
   <nav>
-    <button class="nav active" data-tab="overview"><span>⌂</span> Command</button>
-    <button class="nav" data-tab="members"><span>◉</span> Members</button>
-    <button class="nav" data-tab="chain"><span>⛓</span> Chain</button>
-    <button class="nav" data-tab="crimes"><span>◆</span> Organized Crimes</button>
-    <button class="nav" data-tab="armory"><span>▣</span> Armory</button>
-    <button class="nav" data-tab="wars"><span>⚔</span> Wars</button>
-    <button class="nav" data-tab="activity"><span>↯</span> Activity</button>
-    <button class="nav" data-tab="upgrades"><span>▲</span> Upgrades</button>
+    <button class="nav active" data-tab="overview">
+      <span>⌂</span> Command
+    </button>
+
+    <button class="nav" data-tab="members">
+      <span>◉</span> Members
+    </button>
+
+    <button class="nav" data-tab="chain">
+      <span>⛓</span> Chain
+    </button>
+
+    <button class="nav" data-tab="crimes">
+      <span>◆</span> Organized Crimes
+    </button>
+
+    <button class="nav" data-tab="armory">
+      <span>▣</span> Armory
+    </button>
+
+    <button class="nav" data-tab="wars">
+      <span>⚔</span> Wars
+    </button>
+
+    <button class="nav" data-tab="activity">
+      <span>↯</span> Activity
+    </button>
+
+    <button class="nav" data-tab="upgrades">
+      <span>▲</span> Upgrades
+    </button>
   </nav>
 
   <div class="side-links">
@@ -42,26 +70,43 @@
 
   <div class="side-foot">
     FACTION #53295<br>
-    <span>Auto sync <b>5m</b></span>
+    <span>Data sync <b>5m</b> • Chain <b>5s</b></span>
   </div>
+
 </aside>
+
 
 <main class="main">
 
 <header class="topbar">
+
   <div>
     <div class="eyebrow">TACTICAL OPERATIONS / LIVE</div>
-    <h1 id="heroTitle">Faction Command</h1>
-    <p id="heroSub">Loading live faction intelligence…</p>
+
+    <h1 id="heroTitle">
+      Faction Command
+    </h1>
+
+    <p id="heroSub">
+      Loading live faction intelligence…
+    </p>
   </div>
 
   <div class="top-actions">
-    <button id="refreshBtn" class="btn">↻ Refresh</button>
-    <span id="updated" class="updated">—</span>
+    <button id="refreshBtn" class="btn">
+      ↻ Refresh
+    </button>
+
+    <span id="updated" class="updated">
+      —
+    </span>
   </div>
+
 </header>
 
-<!-- COMMAND -->
+
+<!-- COMMAND / OVERVIEW -->
+
 <section id="overview" class="tab-panel active">
 
   <div class="alert hidden" id="error"></div>
@@ -69,39 +114,75 @@
   <div class="hero-grid">
 
     <article class="command-card">
-      <div class="card-label">CURRENT READINESS</div>
+
+      <div class="card-label">
+        CURRENT READINESS
+      </div>
 
       <div class="readiness">
+
         <div class="readiness-ring">
           <strong id="readiness">—</strong>
           <small>LIVE</small>
         </div>
 
         <div>
-          <h2 id="readinessTitle">Awaiting data</h2>
+          <h2 id="readinessTitle">
+            Awaiting data
+          </h2>
+
           <p id="readinessText">
             The command feed will update automatically.
           </p>
         </div>
+
       </div>
 
       <div class="quick-actions">
-        <a id="heroTorn" target="_blank" rel="noopener">Faction Page</a>
-        <a id="heroPda">TornPDA</a>
-        <a id="heroDiscord" target="_blank" rel="noopener">Discord</a>
+
+        <a id="heroTorn"
+           target="_blank"
+           rel="noopener">
+          Faction Page
+        </a>
+
+        <a id="heroPda">
+          TornPDA
+        </a>
+
+        <a id="heroDiscord"
+           target="_blank"
+           rel="noopener">
+          Discord
+        </a>
+
       </div>
+
     </article>
 
+
     <article class="panel">
+
       <div class="panel-head">
-        <h2>Faction Intel</h2>
-        <span class="live">LIVE</span>
+
+        <h2>
+          Faction Intel
+        </h2>
+
+        <span class="live">
+          LIVE
+        </span>
+
       </div>
 
-      <div id="factionInfo" class="info-grid"></div>
+      <div id="factionInfo"
+           class="info-grid">
+      </div>
+
     </article>
 
   </div>
+
 
   <div class="kpis">
 
@@ -117,7 +198,6 @@
       <small id="capacitySmall">Capacity —</small>
     </article>
 
-    <!-- IMPORTANT: unique ID. It is NOT "chain". -->
     <article class="kpi">
       <span>Chain</span>
       <strong id="commandChain">—</strong>
@@ -144,37 +224,56 @@
 
   </div>
 
+
   <div class="grid two">
 
     <article class="panel">
+
       <div class="panel-head">
         <h2>Operations Feed</h2>
         <span id="feedTime">—</span>
       </div>
-      <div id="liveInfo" class="feed"></div>
+
+      <div id="liveInfo"
+           class="feed">
+      </div>
+
     </article>
 
+
     <article class="panel">
+
       <div class="panel-head">
         <h2>Data Coverage</h2>
         <span id="coverage">—</span>
       </div>
-      <div id="coverageInfo" class="coverage"></div>
+
+      <div id="coverageInfo"
+           class="coverage">
+      </div>
+
     </article>
 
   </div>
 
 </section>
 
+
 <!-- MEMBERS -->
-<section id="members" class="tab-panel">
+
+<section id="members"
+         class="tab-panel">
 
   <article class="panel">
 
     <div class="panel-head">
+
       <div>
         <h2>Members</h2>
-        <span class="muted">Live roster and status</span>
+
+        <span class="muted">
+          Live roster and status
+        </span>
       </div>
 
       <input
@@ -182,11 +281,16 @@
         class="search"
         placeholder="Search name, role, status…"
       >
+
     </div>
 
+
     <div class="table-wrap">
+
       <table>
+
         <thead>
+
           <tr>
             <th>Member</th>
             <th>Level</th>
@@ -195,89 +299,145 @@
             <th>Last action</th>
             <th>Status</th>
           </tr>
+
         </thead>
 
-        <tbody id="membersTable"></tbody>
+        <tbody id="membersTable">
+        </tbody>
+
       </table>
+
     </div>
 
   </article>
 
 </section>
 
+
 <!-- CHAIN -->
-<section id="chain" class="tab-panel">
+
+<section id="chain"
+         class="tab-panel">
 
   <div class="grid two">
 
     <article class="command-card chain-card">
 
-      <div class="card-label">CHAIN STATUS</div>
+      <div class="card-label">
+        CHAIN STATUS
+      </div>
 
       <div class="chain-top">
 
         <div>
-          <div class="chain-number" id="chainBig">—</div>
-          <div class="chain-label">CURRENT HITS</div>
+
+          <div class="chain-number"
+               id="chainBig">
+            —
+          </div>
+
+          <div class="chain-label">
+            CURRENT HITS
+          </div>
+
         </div>
 
-        <span id="chainPhase" class="chain-phase waiting">
+        <span id="chainPhase"
+              class="chain-phase waiting">
           WAITING
         </span>
 
       </div>
 
+
       <div class="chain-bar">
         <i id="chainBar"></i>
       </div>
 
+
       <div class="chain-meta">
-        <span id="chainTimeout">Next hit —</span>
-        <span id="chainCooldown">Cooldown —</span>
+
+        <span id="chainTimeout">
+          Next hit —
+        </span>
+
+        <span id="chainCooldown">
+          Cooldown —
+        </span>
+
       </div>
 
     </article>
+
 
     <article class="panel">
 
       <div class="panel-head">
 
         <div>
-          <h2>Chain Intelligence</h2>
-          <span class="muted">Live chain state</span>
+
+          <h2>
+            Chain Intelligence
+          </h2>
+
+          <span class="muted">
+            Live chain state • updates every 5s
+          </span>
+
         </div>
 
-        <span class="live">LIVE</span>
+        <span class="live">
+          LIVE
+        </span>
+
+        <span id="chainLiveStamp"
+              class="muted">
+          Live —
+        </span>
 
       </div>
 
-      <div id="chainDetails" class="list"></div>
+      <div id="chainDetails"
+           class="list">
+      </div>
 
     </article>
 
   </div>
 
+
   <!-- PREVIOUS CHAINS -->
+
   <section class="panel chain-history-panel">
 
     <div class="panel-head">
 
       <div>
-        <h2>Previous Chains</h2>
+
+        <h2>
+          Previous Chains
+        </h2>
+
         <span class="muted">
           Completed chain history from Torn
         </span>
+
       </div>
 
-      <span id="chainHistoryNote" class="muted">—</span>
+      <span id="chainHistoryNote"
+            class="muted">
+        —
+      </span>
 
     </div>
+
 
     <div class="table-wrap">
 
       <table>
 
         <thead>
+
           <tr>
             <th>Chain</th>
             <th>Hits</th>
@@ -287,9 +447,11 @@
             <th>Bonus hits</th>
             <th>Avg. respect</th>
           </tr>
+
         </thead>
 
-        <tbody id="chainHistoryTable"></tbody>
+        <tbody id="chainHistoryTable">
+        </tbody>
 
       </table>
 
@@ -299,29 +461,41 @@
 
 </section>
 
+
 <!-- ORGANIZED CRIMES -->
-<section id="crimes" class="tab-panel">
+
+<section id="crimes"
+         class="tab-panel">
 
   <article class="panel">
 
     <div class="panel-head">
 
       <div>
-        <h2>Organized Crimes</h2>
+
+        <h2>
+          Organized Crimes
+        </h2>
+
         <span class="muted">
           Planning, participants and status
         </span>
+
       </div>
 
-      <span id="ocNote">—</span>
+      <span id="ocNote">
+        —
+      </span>
 
     </div>
+
 
     <div class="table-wrap">
 
       <table>
 
         <thead>
+
           <tr>
             <th>Crime</th>
             <th>Status</th>
@@ -329,9 +503,11 @@
             <th>Participants</th>
             <th>Details</th>
           </tr>
+
         </thead>
 
-        <tbody id="crimesTable"></tbody>
+        <tbody id="crimesTable">
+        </tbody>
 
       </table>
 
@@ -341,18 +517,26 @@
 
 </section>
 
+
 <!-- ARMORY -->
-<section id="armory" class="tab-panel">
+
+<section id="armory"
+         class="tab-panel">
 
   <article class="panel">
 
     <div class="panel-head">
 
       <div>
-        <h2>Armory</h2>
+
+        <h2>
+          Armory
+        </h2>
+
         <span class="muted">
           Inventory returned by your faction API access
         </span>
+
       </div>
 
       <input
@@ -363,20 +547,24 @@
 
     </div>
 
+
     <div class="table-wrap">
 
       <table>
 
         <thead>
+
           <tr>
             <th>Item</th>
             <th>Type</th>
             <th>Quantity</th>
             <th>ID</th>
           </tr>
+
         </thead>
 
-        <tbody id="armoryTable"></tbody>
+        <tbody id="armoryTable">
+        </tbody>
 
       </table>
 
@@ -386,8 +574,11 @@
 
 </section>
 
+
 <!-- WARS -->
-<section id="wars" class="tab-panel">
+
+<section id="wars"
+         class="tab-panel">
 
   <div class="grid two">
 
@@ -398,9 +589,12 @@
         <span id="warBadge">—</span>
       </div>
 
-      <div id="warInfo" class="list"></div>
+      <div id="warInfo"
+           class="list">
+      </div>
 
     </article>
+
 
     <article class="panel">
 
@@ -408,7 +602,9 @@
         <h2>Territory</h2>
       </div>
 
-      <div id="territoryInfo" class="list"></div>
+      <div id="territoryInfo"
+           class="list">
+      </div>
 
     </article>
 
@@ -416,83 +612,144 @@
 
 </section>
 
+
 <!-- ACTIVITY -->
-<section id="activity" class="tab-panel">
+
+<section id="activity"
+         class="tab-panel">
 
   <div class="grid two">
 
     <article class="panel">
+
       <div class="panel-head">
         <h2>Applications</h2>
       </div>
-      <div id="applicationsInfo" class="table-wrap"></div>
+
+      <div id="applicationsInfo"
+           class="table-wrap">
+      </div>
+
     </article>
 
+
     <article class="panel">
+
       <div class="panel-head">
         <h2>Reports</h2>
       </div>
-      <div id="reportsInfo" class="table-wrap"></div>
+
+      <div id="reportsInfo"
+           class="table-wrap">
+      </div>
+
     </article>
 
+
     <article class="panel">
+
       <div class="panel-head">
         <h2>Attacks</h2>
       </div>
-      <div id="attacksInfo" class="table-wrap"></div>
+
+      <div id="attacksInfo"
+           class="table-wrap">
+      </div>
+
     </article>
 
+
     <article class="panel">
+
       <div class="panel-head">
         <h2>Revives</h2>
       </div>
-      <div id="revivesInfo" class="table-wrap"></div>
+
+      <div id="revivesInfo"
+           class="table-wrap">
+      </div>
+
     </article>
 
+
     <article class="panel">
+
       <div class="panel-head">
         <h2>Contributors</h2>
       </div>
-      <div id="contributorsInfo" class="table-wrap"></div>
+
+      <div id="contributorsInfo"
+           class="table-wrap">
+      </div>
+
     </article>
 
+
     <article class="panel">
+
       <div class="panel-head">
         <h2>Donations</h2>
       </div>
-      <div id="donationsInfo" class="table-wrap"></div>
+
+      <div id="donationsInfo"
+           class="table-wrap">
+      </div>
+
     </article>
 
   </div>
 
 </section>
 
+
 <!-- UPGRADES -->
-<section id="upgrades" class="tab-panel">
+
+<section id="upgrades"
+         class="tab-panel">
 
   <article class="panel">
 
     <div class="panel-head">
-      <h2>Faction Upgrades</h2>
-      <span>Live API data</span>
+
+      <h2>
+        Faction Upgrades
+      </h2>
+
+      <span>
+        Live API data
+      </span>
+
     </div>
 
-    <div id="upgradesInfo" class="cards"></div>
+    <div id="upgradesInfo"
+         class="cards">
+    </div>
 
   </article>
 
 </section>
 
+
 <footer>
+
   ORANGE // Faction Command
+
   <span>•</span>
-  Last sync <b id="footerUpdated">—</b>
+
+  Last sync
+  <b id="footerUpdated">—</b>
+
   <span>•</span>
-  Auto-refresh 5m
+
+  Data sync 5m • Live chain 5s
+
 </footer>
 
+
 </main>
+
 </div>
+
 
 <script src="/assets/app.js"></script>
 
