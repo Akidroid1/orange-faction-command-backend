@@ -9,20 +9,26 @@ const CONFIG = {
 const $ = s => document.querySelector(s);
 
 const fmt = n =>
-  n == null || n === '' || Number.isNaN(Number(n))
+  n == null ||
+  n === '' ||
+  Number.isNaN(Number(n))
     ? '—'
     : Number(n).toLocaleString();
 
 const esc = s =>
-  String(s ?? '').replace(/[&<>"']/g, c => ({
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&#039;',
-    "'": '&#039;'
-  }[c]));
+  String(s ?? '').replace(
+    /[&<>"']/g,
+    c => ({
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#039;'
+    }[c])
+  );
 
 let DATA = {};
+let LIVE_CHAIN = null;
 
 const tornUrl =
   `https://www.torn.com/factions.php?step=profile&ID=${CONFIG.factionId}`;
@@ -31,161 +37,95 @@ const pdaUrl =
   `tornpda://factions.php?step=profile&ID=${CONFIG.factionId}`;
 
 function setLinks() {
+  ['tornBtn', 'heroTorn']
+    .forEach(id => {
+      const el = $('#' + id);
+      if (el) el.href = tornUrl;
+    });
+
+  ['pdaBtn', 'heroPda']
+    .forEach(id => {
+      const el = $('#' + id);
+      if (el) el.href = pdaUrl;
+    });
+
   const links = {
-    tornBtn: tornUrl,
-    heroTorn: tornUrl,
-    pdaBtn: pdaUrl,
-    heroPda: pdaUrl,
-    statsBtn: CONFIG.tornStats,
     discordBtn: CONFIG.discordInvite,
-    heroDiscord: CONFIG.discordInvite
+    heroDiscord: CONFIG.discordInvite,
+    statsBtn: CONFIG.tornStats
   };
 
-  Object.entries(links).forEach(([id, href]) => {
-    const el = document.getElementById(id);
-    if (el) el.href = href;
-  });
+  Object.entries(links)
+    .forEach(([id, url]) => {
+      const el = $('#' + id);
+      if (el) el.href = url;
+    });
 }
 
 function get(o, ...paths) {
   for (const p of paths) {
-    const v = p.split('.').reduce((a, k) => a?.[k], o);
-    if (v !== undefined && v !== null) return v;
+    const v =
+      p.split('.').reduce(
+        (a, k) => a?.[k],
+        o
+      );
+
+    if (
+      v !== undefined &&
+      v !== null
+    ) {
+      return v;
+    }
   }
+
   return undefined;
 }
 
 function arr(v) {
-  if (Array.isArray(v)) return v;
-  if (v && typeof v === 'object') return Object.values(v);
+  if (Array.isArray(v)) {
+    return v;
+  }
+
+  if (
+    v &&
+    typeof v === 'object'
+  ) {
+    return Object.values(v);
+  }
+
   return [];
 }
 
-function scalar(v, fallback = '—') {
-  if (v == null || v === '') return fallback;
-
-  if (typeof v === 'object') {
-    return (
-      v.name ??
-      v.username ??
-      v.title ??
-      v.rank ??
-      v.label ??
-      v.value ??
-      v.id ??
-      fallback
-    );
+function fmtTime(v) {
+  if (v == null || v === '') {
+    return '—';
   }
 
-  return v;
-}
-
-function fmtTime(v) {
-  if (v == null || v === '') return '—';
-
-  const n = Number(v);
-
-  if (!Number.isNaN(n)) {
-    const ms = n < 100000000000 ? n * 1000 : n;
-    const d = new Date(ms);
-
-    if (!Number.isNaN(d.getTime())) {
-      return d.toLocaleString();
-    }
+  if (
+    typeof v === 'number' &&
+    Number.isFinite(v)
+  ) {
+    try {
+      return new Date(
+        v * 1000
+      ).toLocaleString();
+    } catch {}
   }
 
   return String(v);
 }
 
-function factionAge(b) {
-  const age = get(
-    b,
-    'age',
-    'age_days',
-    'days_old',
-    'faction_age'
-  );
-
-  if (typeof age === 'number') {
-    if (age >= 365) {
-      return `${Math.floor(age / 365)}y ${Math.floor((age % 365) / 30)}m`;
-    }
-
-    if (age >= 30) {
-      return `${Math.floor(age / 30)}m`;
-    }
-
-    return `${age}d`;
-  }
-
-  const created = get(
-    b,
-    'created',
-    'created_at',
-    'creation_date',
-    'founded'
-  );
-
-  const n = Number(created);
-
-  if (!Number.isNaN(n) && n > 0) {
-    const createdMs = n < 100000000000 ? n * 1000 : n;
-
-    const days = Math.max(
-      0,
-      Math.floor((Date.now() - createdMs) / 86400000)
-    );
-
-    if (days >= 365) {
-      return `${Math.floor(days / 365)}y ${Math.floor((days % 365) / 30)}m`;
-    }
-
-    if (days >= 30) {
-      return `${Math.floor(days / 30)}m`;
-    }
-
-    return `${days}d`;
-  }
-
-  return scalar(age);
-}
-
-function leaderName(b) {
-  return scalar(
-    get(
-      b,
-      'leader.name',
-      'leader.username',
-      'leader',
-      'leader_id',
-      'leader_name'
-    )
-  );
-}
-
-function factionRank(b) {
-  return scalar(
-    get(
-      b,
-      'rank',
-      'faction_rank',
-      'rank.name',
-      'rankedwar.rank',
-      'ranked_war.rank'
-    )
-  );
-}
-
 function stateCount(ms) {
   return ms.filter(m => {
-    const s = String(
-      get(
-        m,
-        'status.state',
-        'status',
-        'state'
-      ) || ''
-    ).toLowerCase();
+    const s =
+      String(
+        get(
+          m,
+          'status.state',
+          'status',
+          'state'
+        ) || ''
+      ).toLowerCase();
 
     return [
       'online',
@@ -195,68 +135,229 @@ function stateCount(ms) {
   }).length;
 }
 
-function chainState(ch) {
-  const source =
-    get(ch, 'current') &&
-    typeof get(ch, 'current') === 'object'
-      ? get(ch, 'current')
-      : ch;
+/* =========================================================
+   FACTION LEADER
+   ========================================================= */
 
+function leaderName(basic, members) {
+  const leader =
+    get(
+      basic,
+      'leader',
+      'leader_id',
+      'leaderId'
+    );
+
+  if (
+    leader &&
+    typeof leader === 'object'
+  ) {
+    const direct =
+      leader.name ||
+      leader.username ||
+      leader.display_name;
+
+    if (direct) {
+      return direct;
+    }
+
+    const id =
+      leader.id ||
+      leader.user_id ||
+      leader.player_id;
+
+    if (id) {
+      const found =
+        members.find(
+          m =>
+            String(
+              m.id ??
+              m.user_id ??
+              m.player_id
+            ) ===
+            String(id)
+        );
+
+      if (found) {
+        return (
+          found.name ||
+          found.username ||
+          String(id)
+        );
+      }
+
+      return String(id);
+    }
+  }
+
+  if (
+    typeof leader === 'string' &&
+    !/^\d+$/.test(leader)
+  ) {
+    return leader;
+  }
+
+  if (
+    typeof leader === 'number' ||
+    (
+      typeof leader === 'string' &&
+      /^\d+$/.test(leader)
+    )
+  ) {
+    const found =
+      members.find(
+        m =>
+          String(
+            m.id ??
+            m.user_id ??
+            m.player_id
+          ) ===
+          String(leader)
+      );
+
+    return (
+      found?.name ||
+      found?.username ||
+      String(leader)
+    );
+  }
+
+  return '—';
+}
+
+/* =========================================================
+   RANK
+   ========================================================= */
+
+function factionRank(basic) {
+  const raw =
+    get(
+      basic,
+      'rank',
+      'faction_rank',
+      'rankedwar.rank'
+    );
+
+  if (
+    raw &&
+    typeof raw === 'object'
+  ) {
+    const name =
+      raw.name ||
+      raw.rank ||
+      raw.title ||
+      raw.value;
+
+    const level =
+      raw.level ??
+      raw.rank_level ??
+      raw.tier ??
+      raw.number;
+
+    if (
+      name != null &&
+      level != null &&
+      String(level) !== ''
+    ) {
+      return `${name} ${level}`;
+    }
+
+    if (name != null) {
+      return String(name);
+    }
+
+    if (level != null) {
+      return String(level);
+    }
+  }
+
+  const rankName =
+    get(
+      basic,
+      'rank.name',
+      'rank.rank',
+      'rank.title'
+    );
+
+  const rankLevel =
+    get(
+      basic,
+      'rank.level',
+      'rank.rank_level',
+      'rank.tier',
+      'rank.number'
+    );
+
+  if (
+    rankName != null &&
+    rankLevel != null
+  ) {
+    return `${rankName} ${rankLevel}`;
+  }
+
+  if (rankName != null) {
+    return String(rankName);
+  }
+
+  if (raw != null) {
+    return String(raw);
+  }
+
+  return '—';
+}
+
+/* =========================================================
+   CHAIN
+   ========================================================= */
+
+function chainState(ch) {
   const current =
     Number(
       get(
-        source,
+        ch,
         'current',
         'current_chain',
-        'chain',
-        'hits'
+        'chain'
       )
     ) || 0;
 
   const max =
     Number(
       get(
-        source,
+        ch,
         'max',
-        'max_chain',
-        'target'
+        'max_chain'
       )
     ) || 0;
 
-  let timeout =
+  const timeout =
     Number(
       get(
-        source,
+        ch,
         'timeout',
-        'chain.timeout',
-        'timeout_remaining'
+        'chain.timeout'
       )
     ) || 0;
+
+  const cooldownRaw =
+    get(
+      ch,
+      'cooldown',
+      'chain.cooldown'
+    );
 
   const cooldown =
-    Number(
-      get(
-        source,
-        'cooldown',
-        'chain.cooldown'
-      )
-    ) || 0;
+    Number(cooldownRaw) || 0;
 
   const now =
-    Math.floor(Date.now() / 1000);
-
-  if (
-    timeout > now &&
-    timeout > 1000000000
-  ) {
-    timeout -= now;
-  }
+    Math.floor(
+      Date.now() / 1000
+    );
 
   const cooldownRemaining =
-    cooldown > now &&
-    cooldown > 1000000000
+    cooldown > now
       ? cooldown - now
-      : Math.max(0, cooldown);
+      : 0;
 
   return {
     current,
@@ -325,9 +426,255 @@ function nextChainMilestone(current) {
   ) || null;
 }
 
-function renderChain(ch) {
-  if (!ch) return;
+function ensureChainHistoryUI() {
+  const chainDetails =
+    $('#chainDetails');
 
+  if (!chainDetails) {
+    return null;
+  }
+
+  let history =
+    $('#chainHistory');
+
+  if (history) {
+    return history;
+  }
+
+  history =
+    document.createElement('div');
+
+  history.id =
+    'chainHistory';
+
+  history.style.marginTop =
+    '18px';
+
+  history.innerHTML = `
+    <div style="
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:10px;
+      margin-bottom:10px;
+    ">
+      <div>
+        <div style="
+          font-size:10px;
+          letter-spacing:.14em;
+          color:#727985;
+          text-transform:uppercase;
+        ">
+          PREVIOUS CHAINS
+        </div>
+
+        <div style="
+          font-size:12px;
+          color:#8d96a3;
+          margin-top:3px;
+        ">
+          Completed chains recorded by Command
+        </div>
+      </div>
+
+      <span
+        id="chainHistoryCount"
+        style="
+          font-size:11px;
+          color:#8d96a3;
+        "
+      >
+        0
+      </span>
+    </div>
+
+    <div
+      id="chainHistoryRows"
+      style="
+        display:flex;
+        flex-direction:column;
+        gap:7px;
+      "
+    >
+      <div style="
+        padding:12px;
+        border:1px solid #252a33;
+        border-radius:8px;
+        color:#727985;
+        font-size:12px;
+      ">
+        No completed chains recorded yet.
+      </div>
+    </div>
+  `;
+
+  chainDetails.parentElement.appendChild(
+    history
+  );
+
+  return history;
+}
+
+function renderChainHistory(history) {
+  ensureChainHistoryUI();
+
+  const rows =
+    $('#chainHistoryRows');
+
+  const count =
+    $('#chainHistoryCount');
+
+  if (!rows) {
+    return;
+  }
+
+  const list =
+    Array.isArray(history)
+      ? history
+      : [];
+
+  if (count) {
+    count.textContent =
+      `${list.length} recorded`;
+  }
+
+  if (!list.length) {
+    rows.innerHTML = `
+      <div style="
+        padding:12px;
+        border:1px solid #252a33;
+        border-radius:8px;
+        color:#727985;
+        font-size:12px;
+      ">
+        No completed chains recorded yet.
+      </div>
+    `;
+
+    return;
+  }
+
+  rows.innerHTML =
+    list.slice(0, 50)
+      .map((item, index) => {
+        const chain =
+          Number(
+            item.chain_count ??
+            item.current ??
+            0
+          ) || 0;
+
+        const peak =
+          Number(
+            item.peak_chain ??
+            chain
+          ) || chain;
+
+        const ended =
+          item.ended_at
+            ? new Date(
+                item.ended_at
+              ).toLocaleString()
+            : '—';
+
+        const started =
+          item.started_at
+            ? new Date(
+                item.started_at
+              ).toLocaleString()
+            : '—';
+
+        const duration =
+          Number(
+            item.duration_seconds
+          ) || 0;
+
+        return `
+          <div style="
+            display:grid;
+            grid-template-columns:
+              34px
+              minmax(90px,1fr)
+              minmax(90px,1fr)
+              minmax(130px,1.5fr);
+            gap:10px;
+            align-items:center;
+            padding:10px 11px;
+            border:1px solid #252a33;
+            border-radius:8px;
+            background:rgba(255,255,255,.015);
+          ">
+            <div style="
+              color:#555e6b;
+              font-size:11px;
+              text-align:center;
+            ">
+              #${esc(index + 1)}
+            </div>
+
+            <div>
+              <div style="
+                font-size:15px;
+                font-weight:700;
+              ">
+                ${esc(fmt(chain))}
+              </div>
+
+              <div style="
+                font-size:10px;
+                color:#727985;
+                margin-top:2px;
+              ">
+                CHAIN
+              </div>
+            </div>
+
+            <div>
+              <div style="
+                font-size:13px;
+                font-weight:600;
+              ">
+                ${esc(fmt(peak))}
+              </div>
+
+              <div style="
+                font-size:10px;
+                color:#727985;
+                margin-top:2px;
+              ">
+                PEAK
+              </div>
+            </div>
+
+            <div>
+              <div style="
+                font-size:11px;
+                color:#a1a8b3;
+              ">
+                ${esc(ended)}
+              </div>
+
+              <div style="
+                font-size:10px;
+                color:#727985;
+                margin-top:3px;
+              ">
+                ${duration
+                  ? esc(
+                      formatDuration(
+                        duration
+                      )
+                    )
+                  : 'Duration unavailable'}
+              </div>
+            </div>
+          </div>
+        `;
+      })
+      .join('');
+}
+
+function renderChain(ch) {
   const state =
     chainState(ch);
 
@@ -345,7 +692,7 @@ function renderChain(ch) {
   const phase =
     cooldown
       ? 'COOLDOWN'
-      : live || state.current > 0
+      : live
         ? 'ACTIVE'
         : 'WAITING';
 
@@ -360,19 +707,13 @@ function renderChain(ch) {
       `chain-phase ${phase.toLowerCase()}`;
   }
 
-  const big =
-    $('#chainBig');
-
-  if (big) {
-    big.textContent =
+  if ($('#chainBig')) {
+    $('#chainBig').textContent =
       fmt(state.current);
   }
 
-  const bar =
-    $('#chainBar');
-
-  if (bar) {
-    bar.style.width =
+  if ($('#chainBar')) {
+    $('#chainBar').style.width =
       (
         state.max
           ? Math.min(
@@ -381,95 +722,80 @@ function renderChain(ch) {
                 state.max *
                 100
             )
-          : state.current
-            ? 100
-            : 0
+          : 0
       ) + '%';
   }
 
-  const timeoutEl =
-    $('#chainTimeout');
-
-  if (timeoutEl) {
-    timeoutEl.textContent =
+  if ($('#chainTimeout')) {
+    $('#chainTimeout').textContent =
       live
         ? `Next hit ${formatDuration(state.timeout)}`
         : 'Next hit —';
   }
 
-  const cooldownEl =
-    $('#chainCooldown');
-
-  if (cooldownEl) {
-    cooldownEl.textContent =
+  if ($('#chainCooldown')) {
+    $('#chainCooldown').textContent =
       cooldown
         ? `Cooldown ${formatDuration(state.cooldownRemaining)}`
         : 'Cooldown —';
   }
 
-  const details =
-    $('#chainDetails');
+  const rows = [
+    [
+      'Current chain',
+      fmt(state.current)
+    ],
+    [
+      'Chain target',
+      state.max
+        ? fmt(state.max)
+        : '—'
+    ],
+    [
+      'Next bonus hit',
+      next
+        ? fmt(next)
+        : 'Maximum reached'
+    ],
+    [
+      'Progress',
+      state.max
+        ? `${Math.min(
+            100,
+            state.current /
+              state.max *
+              100
+          ).toFixed(1)}%`
+        : '—'
+    ],
+    [
+      'Timeout',
+      live
+        ? formatDuration(
+            state.timeout
+          )
+        : '—'
+    ],
+    [
+      'Cooldown',
+      cooldown
+        ? formatDuration(
+            state.cooldownRemaining
+          )
+        : '—'
+    ],
+    [
+      'Chain ID',
+      get(ch, 'id') ?? '—'
+    ],
+    [
+      'Modifier',
+      get(ch, 'modifier') ?? '—'
+    ]
+  ];
 
-  if (details) {
-    const rows = [
-      [
-        'Current chain',
-        fmt(state.current)
-      ],
-      [
-        'Chain target',
-        state.max
-          ? fmt(state.max)
-          : '—'
-      ],
-      [
-        'Next bonus hit',
-        next
-          ? fmt(next)
-          : 'Maximum reached'
-      ],
-      [
-        'Progress',
-        state.max
-          ? `${Math.min(
-              100,
-              state.current /
-                state.max *
-                100
-            ).toFixed(1)}%`
-          : '—'
-      ],
-      [
-        'Timeout',
-        live
-          ? formatDuration(
-              state.timeout
-            )
-          : '—'
-      ],
-      [
-        'Cooldown',
-        cooldown
-          ? formatDuration(
-              state.cooldownRemaining
-            )
-          : '—'
-      ],
-      [
-        'Chain ID',
-        scalar(
-          get(ch, 'id')
-        )
-      ],
-      [
-        'Modifier',
-        scalar(
-          get(ch, 'modifier')
-        )
-      ]
-    ];
-
-    details.innerHTML =
+  if ($('#chainDetails')) {
+    $('#chainDetails').innerHTML =
       rows
         .map(
           x =>
@@ -481,18 +807,17 @@ function renderChain(ch) {
         .join('');
   }
 
-  const commandChain =
-    $('#commandChain') ||
-    $('#chain');
-
-  if (commandChain) {
-    commandChain.textContent =
-      fmt(state.current);
-  }
+  renderChainHistory(
+    LIVE_CHAIN?.history || []
+  );
 }
 
+/* =========================================================
+   MAIN RENDER
+   ========================================================= */
+
 function render(d) {
-  DATA = d || {};
+  DATA = d;
 
   const b =
     d.basic || {};
@@ -519,36 +844,20 @@ function render(d) {
     d.chain || {};
 
   const name =
-    scalar(
-      get(
-        b,
-        'name',
-        'faction_name'
-      ),
-      'ORANGE'
-    );
+    b.name || 'ORANGE';
 
-  const factionName =
-    $('#factionName');
-
-  if (factionName) {
-    factionName.textContent =
+  if ($('#factionName')) {
+    $('#factionName').textContent =
       name;
   }
 
-  const heroTitle =
-    $('#heroTitle');
-
-  if (heroTitle) {
-    heroTitle.textContent =
+  if ($('#heroTitle')) {
+    $('#heroTitle').textContent =
       name;
   }
 
-  const heroSub =
-    $('#heroSub');
-
-  if (heroSub) {
-    heroSub.textContent =
+  if ($('#heroSub')) {
+    $('#heroSub').textContent =
       `Faction #${CONFIG.factionId} • Command intelligence synchronized from Torn`;
   }
 
@@ -559,27 +868,20 @@ function render(d) {
       'respect_value'
     );
 
-  const respectEl =
-    $('#respect');
-
-  if (respectEl) {
-    respectEl.textContent =
+  if ($('#respect')) {
+    $('#respect').textContent =
       fmt(respect);
   }
 
-  const memberCount =
-    get(
-      b,
-      'members.member_count',
-      'member_count'
-    ) ?? ms.length;
-
-  const membersCount =
-    $('#membersCount');
-
-  if (membersCount) {
-    membersCount.textContent =
-      fmt(memberCount);
+  if ($('#membersCount')) {
+    $('#membersCount').textContent =
+      fmt(
+        get(
+          b,
+          'members.member_count',
+          'member_count'
+        ) ?? ms.length
+      );
   }
 
   const cap =
@@ -590,110 +892,112 @@ function render(d) {
       'members.member_capacity'
     );
 
-  const capacitySmall =
-    $('#capacitySmall');
-
-  if (capacitySmall) {
-    capacitySmall.textContent =
+  if ($('#capacitySmall')) {
+    $('#capacitySmall').textContent =
       `Capacity ${fmt(cap)}`;
   }
 
-  const rankEl =
-    $('#rank');
+  const rank =
+    factionRank(b);
 
-  if (rankEl) {
-    rankEl.textContent =
-      factionRank(b);
+  if ($('#rank')) {
+    $('#rank').textContent =
+      rank;
   }
 
-  const state =
-    chainState(ch);
+  const currentChain =
+    get(
+      ch,
+      'current',
+      'current_chain',
+      'chain'
+    );
 
-  const chainKpi =
-    $('#commandChain') ||
-    $('#chain');
-
-  if (chainKpi) {
-    chainKpi.textContent =
-      fmt(state.current);
+  if ($('#chain')) {
+    $('#chain').textContent =
+      fmt(currentChain);
   }
 
-  const ocCount =
-    $('#ocCount');
+  if ($('#chainBig')) {
+    $('#chainBig').textContent =
+      fmt(currentChain);
+  }
 
-  if (ocCount) {
-    ocCount.textContent =
+  if ($('#ocCount')) {
+    $('#ocCount').textContent =
       fmt(cs.length);
   }
 
-  const onlineCount =
-    $('#onlineCount');
-
-  if (onlineCount) {
-    onlineCount.textContent =
-      fmt(stateCount(ms));
+  if ($('#onlineCount')) {
+    $('#onlineCount').textContent =
+      fmt(
+        stateCount(ms)
+      );
   }
 
-  const time =
-    new Date()
-      .toLocaleTimeString();
+  const now =
+    new Date();
 
-  const updated =
-    $('#updated');
-
-  if (updated) {
-    updated.textContent =
-      time;
+  if ($('#updated')) {
+    $('#updated').textContent =
+      now.toLocaleTimeString();
   }
 
-  const footerUpdated =
-    $('#footerUpdated');
-
-  if (footerUpdated) {
-    footerUpdated.textContent =
-      time;
+  if ($('#footerUpdated')) {
+    $('#footerUpdated').textContent =
+      now.toLocaleTimeString();
   }
 
-  const feedTime =
-    $('#feedTime');
-
-  if (feedTime) {
-    feedTime.textContent =
-      time;
+  if ($('#feedTime')) {
+    $('#feedTime').textContent =
+      now.toLocaleTimeString();
   }
 
-  const factionInfo =
-    $('#factionInfo');
+  const leader =
+    leaderName(
+      b,
+      ms
+    );
 
-  if (factionInfo) {
-    const info = [
-      [
-        'Faction ID',
-        CONFIG.factionId
-      ],
-      [
-        'Leader',
-        leaderName(b)
-      ],
-      [
-        'Respect',
-        fmt(respect)
-      ],
-      [
-        'Rank',
-        factionRank(b)
-      ],
-      [
-        'Age',
-        factionAge(b)
-      ],
-      [
-        'Members',
-        `${ms.length}${cap ? ` / ${fmt(cap)}` : ''}`
-      ]
-    ];
+  const info = [
+    [
+      'Faction ID',
+      CONFIG.factionId
+    ],
+    [
+      'Leader',
+      leader
+    ],
+    [
+      'Respect',
+      fmt(respect)
+    ],
+    [
+      'Rank',
+      rank
+    ],
+    [
+      'Age',
+      fmtTime(
+        get(
+          b,
+          'age',
+          'created'
+        )
+      )
+    ],
+    [
+      'Members',
+      `${ms.length}${
+        cap
+          ? ` / ${cap}`
+          : ''
+      }`
+    ]
+  ];
 
-    factionInfo.innerHTML =
+  if ($('#factionInfo')) {
+    $('#factionInfo').innerHTML =
       info
         .map(
           x =>
@@ -712,22 +1016,28 @@ function render(d) {
       100,
       Math.round(
         (
-          ms.length
-            ? Math.min(
-                1,
-                stateCount(ms) /
-                  Math.max(
-                    1,
-                    ms.length
-                  )
-              ) * 40
-            : 20
+          (
+            ms.length
+              ? Math.min(
+                  1,
+                  stateCount(ms) /
+                    Math.max(
+                      1,
+                      ms.length
+                    )
+                ) * .4
+              : .2
+          ) * 100
         ) +
         (
-          state.current
+          Number(
+            currentChain
+          )
             ? Math.min(
                 1,
-                state.current / 100
+                Number(
+                  currentChain
+                ) / 100
               ) * 40
             : 0
         ) +
@@ -739,19 +1049,13 @@ function render(d) {
       )
     );
 
-  const readinessEl =
-    $('#readiness');
-
-  if (readinessEl) {
-    readinessEl.textContent =
+  if ($('#readiness')) {
+    $('#readiness').textContent =
       readiness + '%';
   }
 
-  const readinessTitle =
-    $('#readinessTitle');
-
-  if (readinessTitle) {
-    readinessTitle.textContent =
+  if ($('#readinessTitle')) {
+    $('#readinessTitle').textContent =
       readiness >= 75
         ? 'Combat ready'
         : readiness >= 45
@@ -759,11 +1063,8 @@ function render(d) {
           : 'Standby';
   }
 
-  const readinessText =
-    $('#readinessText');
-
-  if (readinessText) {
-    readinessText.textContent =
+  if ($('#readinessText')) {
+    $('#readinessText').textContent =
       `${ms.length} members tracked • ${cs.length} OC records • ${
         d.rankedwar
           ? 'war data available'
@@ -771,48 +1072,46 @@ function render(d) {
       }`;
   }
 
-  const liveInfo =
-    $('#liveInfo');
-
-  if (liveInfo) {
-    liveInfo.innerHTML = [
+  if ($('#liveInfo')) {
+    $('#liveInfo').innerHTML =
       [
-        'Roster',
-        `${ms.length} members / ${stateCount(ms)} active`
-      ],
-      [
-        'Organized crimes',
-        cs.length
-      ],
-      [
-        'Armory records',
-        ar.length
-      ],
-      [
-        'Ranked war',
-        d.rankedwar
-          ? 'Available'
-          : 'Unavailable'
-      ],
-      [
-        'Territory',
-        d.territory
-          ? 'Available'
-          : 'Unavailable'
-      ],
-      [
-        'Partial feeds',
-        d._meta?.partial_failures?.length || 0
+        [
+          'Roster',
+          `${ms.length} members / ${stateCount(ms)} active`
+        ],
+        [
+          'Organized crimes',
+          cs.length
+        ],
+        [
+          'Armory records',
+          ar.length
+        ],
+        [
+          'Ranked war',
+          d.rankedwar
+            ? 'Available'
+            : 'Unavailable'
+        ],
+        [
+          'Territory',
+          d.territory
+            ? 'Available'
+            : 'Unavailable'
+        ],
+        [
+          'Partial feeds',
+          d._meta?.partial_failures?.length || 0
+        ]
       ]
-    ]
-      .map(
-        x =>
-          `<div class="feed-row">
-            <span>${esc(x[0])}</span>
-            <b>${esc(x[1])}</b>
-          </div>`
-      )
-      .join('');
+        .map(
+          x =>
+            `<div class="feed-row">
+              <span>${esc(x[0])}</span>
+              <b>${esc(x[1])}</b>
+            </div>`
+        )
+        .join('');
   }
 
   const keys = [
@@ -833,21 +1132,15 @@ function render(d) {
     'donations'
   ];
 
-  const coverage =
-    $('#coverage');
-
-  if (coverage) {
-    coverage.textContent =
+  if ($('#coverage')) {
+    $('#coverage').textContent =
       `${keys.filter(
         k => d[k]
       ).length}/${keys.length}`;
   }
 
-  const coverageInfo =
-    $('#coverageInfo');
-
-  if (coverageInfo) {
-    coverageInfo.innerHTML =
+  if ($('#coverageInfo')) {
+    $('#coverageInfo').innerHTML =
       keys
         .map(
           k =>
@@ -864,15 +1157,8 @@ function render(d) {
   renderMembers(ms);
   renderCrimes(cs);
   renderArmory(ar);
-
-  renderWar(
-    d.rankedwar || {}
-  );
-
-  renderTerritory(
-    d.territory || {}
-  );
-
+  renderWar(d.rankedwar || {});
+  renderTerritory(d.territory || {});
   renderUpgrades(
     arr(
       d.upgrades?.upgrades ||
@@ -910,6 +1196,10 @@ function render(d) {
     d.donations
   );
 }
+
+/* =========================================================
+   TABLES
+   ========================================================= */
 
 function memberLife(m) {
   const cur =
@@ -972,12 +1262,11 @@ function renderMembers(ms) {
         .includes(q)
     );
 
-  const table =
-    $('#membersTable');
+  if (!$('#membersTable')) {
+    return;
+  }
 
-  if (!table) return;
-
-  table.innerHTML =
+  $('#membersTable').innerHTML =
     rows
       .map(m => {
         const status =
@@ -999,18 +1288,23 @@ function renderMembers(ms) {
               '-'
             );
 
+        const id =
+          m.id ??
+          m.user_id ??
+          m.player_id;
+
         return `
           <tr>
             <td>
               <a
-                href="https://www.torn.com/profiles.php?XID=${encodeURIComponent(m.id)}"
+                href="https://www.torn.com/profiles.php?XID=${encodeURIComponent(id)}"
                 target="_blank"
                 rel="noopener"
               >
                 ${esc(
                   m.name ||
                   m.username ||
-                  m.id
+                  id
                 )}
               </a>
             </td>
@@ -1055,33 +1349,27 @@ function renderMembers(ms) {
 }
 
 function renderCrimes(cs) {
-  const note =
-    $('#ocNote');
-
-  if (note) {
-    note.textContent =
+  if ($('#ocNote')) {
+    $('#ocNote').textContent =
       `${cs.length} records`;
   }
 
-  const table =
-    $('#crimesTable');
+  if (!$('#crimesTable')) {
+    return;
+  }
 
-  if (!table) return;
-
-  table.innerHTML =
+  $('#crimesTable').innerHTML =
     cs
       .slice(0, 150)
       .map(
         c =>
           `<tr>
-            <td>
-              ${esc(
-                c.name ||
-                c.crime_name ||
-                c.id ||
-                'OC'
-              )}
-            </td>
+            <td>${esc(
+              c.name ||
+              c.crime_name ||
+              c.id ||
+              'OC'
+            )}</td>
 
             <td>
               <span class="pill">
@@ -1131,12 +1419,11 @@ function renderArmory(items) {
       ''
     ).toLowerCase();
 
-  const table =
-    $('#armoryTable');
+  if (!$('#armoryTable')) {
+    return;
+  }
 
-  if (!table) return;
-
-  table.innerHTML =
+  $('#armoryTable').innerHTML =
     items
       .filter(i =>
         JSON.stringify(i)
@@ -1147,36 +1434,28 @@ function renderArmory(items) {
       .map(
         i =>
           `<tr>
-            <td>
-              ${esc(
-                i.name ||
-                i.item_name ||
-                i.id ||
-                'Item'
-              )}
-            </td>
+            <td>${esc(
+              i.name ||
+              i.item_name ||
+              i.id ||
+              'Item'
+            )}</td>
 
-            <td>
-              ${esc(
-                i.type ||
-                i.category ||
-                '—'
-              )}
-            </td>
+            <td>${esc(
+              i.type ||
+              i.category ||
+              '—'
+            )}</td>
 
-            <td>
-              ${fmt(
-                i.quantity ??
-                i.qty ??
-                i.amount
-              )}
-            </td>
+            <td>${fmt(
+              i.quantity ??
+              i.qty ??
+              i.amount
+            )}</td>
 
-            <td>
-              ${esc(
-                i.id ?? '—'
-              )}
-            </td>
+            <td>${esc(
+              i.id ?? '—'
+            )}</td>
           </tr>`
       )
       .join('') ||
@@ -1193,110 +1472,85 @@ function renderWar(w) {
     ) || w;
 
   const entries =
-    Object.entries(
-      r || {}
-    )
+    Object.entries(r || {})
       .filter(
         ([, v]) =>
           typeof v !== 'object'
       )
       .slice(0, 24);
 
-  const badge =
-    $('#warBadge');
-
-  if (badge) {
-    badge.textContent =
+  if ($('#warBadge')) {
+    $('#warBadge').textContent =
       r &&
       Object.keys(r).length
         ? 'DATA'
         : 'NO ACTIVE DATA';
   }
 
-  const info =
-    $('#warInfo');
-
-  if (!info) return;
-
-  info.innerHTML =
-    entries
-      .map(
-        ([k, v]) =>
-          `<div class="list-row">
-            <span>
-              ${esc(
+  if ($('#warInfo')) {
+    $('#warInfo').innerHTML =
+      entries
+        .map(
+          ([k, v]) =>
+            `<div class="list-row">
+              <span>${esc(
                 k.replaceAll(
                   '_',
                   ' '
                 )
-              )}
-            </span>
-            <b>
-              ${esc(v)}
-            </b>
-          </div>`
-      )
-      .join('') ||
-    '<div class="empty">No ranked-war data returned.</div>';
+              )}</span>
+              <b>${esc(v)}</b>
+            </div>`
+        )
+        .join('') ||
+      '<div class="empty">No ranked-war data returned.</div>';
+  }
 }
 
 function renderTerritory(t) {
   const entries =
-    Object.entries(
-      t || {}
-    )
+    Object.entries(t || {})
       .filter(
         ([, v]) =>
           typeof v !== 'object'
       )
       .slice(0, 24);
 
-  const info =
-    $('#territoryInfo');
-
-  if (!info) return;
-
-  info.innerHTML =
-    entries
-      .map(
-        ([k, v]) =>
-          `<div class="list-row">
-            <span>
-              ${esc(
+  if ($('#territoryInfo')) {
+    $('#territoryInfo').innerHTML =
+      entries
+        .map(
+          ([k, v]) =>
+            `<div class="list-row">
+              <span>${esc(
                 k.replaceAll(
                   '_',
                   ' '
                 )
-              )}
-            </span>
-
-            <b>
-              ${esc(v)}
-            </b>
-          </div>`
-      )
-      .join('') ||
-    '<div class="empty">No territory data returned.</div>';
+              )}</span>
+              <b>${esc(v)}</b>
+            </div>`
+        )
+        .join('') ||
+      '<div class="empty">No territory data returned.</div>';
+  }
 }
 
 function renderUpgrades(us) {
-  const info =
-    $('#upgradesInfo');
+  if (!$('#upgradesInfo')) {
+    return;
+  }
 
-  if (!info) return;
-
-  info.innerHTML =
+  $('#upgradesInfo').innerHTML =
     us
       .map(
         u =>
           `<div class="upgrade-card">
-            <b>
-              ${esc(
-                u.name ||
-                u.upgrade ||
-                u.id
-              )}
-            </b>
+            <b>${esc(
+              u.name ||
+              u.upgrade ||
+              u.id
+            )}</b>
 
             <span>
               Level ${esc(
@@ -1315,7 +1569,9 @@ function renderGeneric(id, data) {
   const el =
     $('#' + id);
 
-  if (!el) return;
+  if (!el) {
+    return;
+  }
 
   const rows =
     arr(data);
@@ -1323,41 +1579,42 @@ function renderGeneric(id, data) {
   if (!rows.length) {
     el.innerHTML =
       '<div class="empty">No data returned for this feed.</div>';
+
     return;
   }
 
   const sample =
     rows.slice(0, 12);
 
-  const cols = [
-    ...new Set(
-      sample.flatMap(o =>
-        typeof o === 'object'
-          ? Object.keys(o)
-          : ['value']
+  const cols =
+    [
+      ...new Set(
+        sample.flatMap(
+          o =>
+            typeof o === 'object'
+              ? Object.keys(o)
+              : ['value']
+        )
       )
-    )
-  ]
-    .filter(
-      k => k !== 'id'
-    )
-    .slice(0, 4);
+    ]
+      .filter(
+        k => k !== 'id'
+      )
+      .slice(0, 4);
 
-  el.innerHTML = `
-    <table>
+  el.innerHTML =
+    `<table>
       <thead>
         <tr>
           ${cols
             .map(
               c =>
-                `<th>
-                  ${esc(
-                    c.replaceAll(
-                      '_',
-                      ' '
-                    )
-                  )}
-                </th>`
+                `<th>${esc(
+                  c.replaceAll(
+                    '_',
+                    ' '
+                  )
+                )}</th>`
             )
             .join('')}
         </tr>
@@ -1369,30 +1626,81 @@ function renderGeneric(id, data) {
             o =>
               `<tr>
                 ${cols
-                  .map(c => {
-                    const value =
-                      typeof o === 'object'
-                        ? typeof o[c] === 'object'
-                          ? JSON.stringify(
-                              o[c]
-                            )
-                          : o[c]
-                        : o;
-
-                    return `
-                      <td>
-                        ${esc(value)}
-                      </td>
-                    `;
-                  })
+                  .map(
+                    c =>
+                      `<td>${esc(
+                        typeof o === 'object'
+                          ? typeof o[c] === 'object'
+                            ? JSON.stringify(o[c])
+                            : o[c]
+                          : o
+                      )}</td>`
+                  )
                   .join('')}
               </tr>`
           )
           .join('')}
       </tbody>
-    </table>
-  `;
+    </table>`;
 }
+
+/* =========================================================
+   LIVE CHAIN POLLING
+   ========================================================= */
+
+async function loadLiveChain() {
+  try {
+    const response =
+      await fetch(
+        `/api/chain?faction_id=${CONFIG.factionId}`,
+        {
+          cache: 'no-store'
+        }
+      );
+
+    if (!response.ok) {
+      return;
+    }
+
+    const data =
+      await response.json();
+
+    LIVE_CHAIN =
+      data;
+
+    if (data.chain) {
+      DATA.chain =
+        data.chain;
+
+      renderChain(
+        data.chain
+      );
+
+      if ($('#chain')) {
+        $('#chain').textContent =
+          fmt(
+            get(
+              data.chain,
+              'current',
+              'current_chain',
+              'chain'
+            )
+          );
+      }
+    }
+
+    renderChainHistory(
+      data.history || []
+    );
+
+  } catch {
+    // Keep the last successful live state.
+  }
+}
+
+/* =========================================================
+   MAIN DATA LOAD
+   ========================================================= */
 
 async function load() {
   const e =
@@ -1404,19 +1712,13 @@ async function load() {
     );
   }
 
-  const statusLine =
-    $('#statusLine');
-
-  if (statusLine) {
-    statusLine.textContent =
+  if ($('#statusLine')) {
+    $('#statusLine').textContent =
       'Syncing…';
   }
 
-  const liveDot =
-    $('#liveDot');
-
-  if (liveDot) {
-    liveDot.className =
+  if ($('#liveDot')) {
+    $('#liveDot').className =
       'sync';
   }
 
@@ -1429,15 +1731,8 @@ async function load() {
         }
       );
 
-    let j;
-
-    try {
-      j = await r.json();
-    } catch {
-      throw new Error(
-        `Server returned HTTP ${r.status}`
-      );
-    }
+    const j =
+      await r.json();
 
     if (!r.ok) {
       throw new Error(
@@ -1448,15 +1743,15 @@ async function load() {
 
     render(j);
 
-    if (statusLine) {
-      statusLine.textContent =
+    if ($('#statusLine')) {
+      $('#statusLine').textContent =
         j._meta?.cached
           ? 'Live • database'
           : 'Live • synchronized';
     }
 
-    if (liveDot) {
-      liveDot.className =
+    if ($('#liveDot')) {
+      $('#liveDot').className =
         '';
     }
 
@@ -1486,70 +1781,21 @@ async function load() {
       );
     }
 
-    if (statusLine) {
-      statusLine.textContent =
+    if ($('#statusLine')) {
+      $('#statusLine').textContent =
         'API unavailable';
     }
 
-    if (liveDot) {
-      liveDot.className =
+    if ($('#liveDot')) {
+      $('#liveDot').className =
         'bad';
     }
-
-    console.error(
-      'Faction data load failed:',
-      x
-    );
   }
 }
 
-async function loadLiveChain() {
-  try {
-    const r =
-      await fetch(
-        `/api/chain?faction_id=${CONFIG.factionId}`,
-        {
-          cache: 'no-store'
-        }
-      );
-
-    let j;
-
-    try {
-      j = await r.json();
-    } catch {
-      return;
-    }
-
-    if (!r.ok) {
-      console.debug(
-        'Live chain request failed:',
-        j
-      );
-      return;
-    }
-
-    if (
-      !j ||
-      j.chain == null
-    ) {
-      return;
-    }
-
-    DATA.chain =
-      j.chain;
-
-    renderChain(
-      j.chain
-    );
-
-  } catch (x) {
-    console.debug(
-      'Live chain update failed:',
-      x
-    );
-  }
-}
+/* =========================================================
+   START
+   ========================================================= */
 
 setLinks();
 
@@ -1563,10 +1809,11 @@ document
           .querySelectorAll(
             '.nav,.tab-panel'
           )
-          .forEach(x =>
-            x.classList.remove(
-              'active'
-            )
+          .forEach(
+            x =>
+              x.classList.remove(
+                'active'
+              )
           );
 
         b.classList.add(
@@ -1592,48 +1839,40 @@ document
     );
   });
 
-const refreshBtn =
-  $('#refreshBtn');
-
-if (refreshBtn) {
-  refreshBtn.onclick =
+if ($('#refreshBtn')) {
+  $('#refreshBtn').onclick =
     load;
 }
 
-const memberSearch =
-  $('#memberSearch');
-
-if (memberSearch) {
-  memberSearch.addEventListener(
-    'input',
-    () =>
-      renderMembers(
-        arr(
-          DATA.members?.members ||
-          DATA.members
+if ($('#memberSearch')) {
+  $('#memberSearch')
+    .addEventListener(
+      'input',
+      () =>
+        renderMembers(
+          arr(
+            DATA.members?.members ||
+            DATA.members
+          )
         )
-      )
-  );
+    );
 }
 
-const armorySearch =
-  $('#armorySearch');
-
-if (armorySearch) {
-  armorySearch.addEventListener(
-    'input',
-    () =>
-      renderArmory(
-        arr(
-          DATA.armory?.items ||
-          DATA.armory
+if ($('#armorySearch')) {
+  $('#armorySearch')
+    .addEventListener(
+      'input',
+      () =>
+        renderArmory(
+          arr(
+            DATA.armory?.items ||
+            DATA.armory
+          )
         )
-      )
-  );
+    );
 }
 
 load();
-
 loadLiveChain();
 
 setInterval(
