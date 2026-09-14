@@ -128,6 +128,21 @@ async function saveSnapshot(
   const fetchedAt =
     new Date().toISOString();
 
+  /*
+   * The members selection is part of this
+   * same Torn request. Therefore every
+   * successful 5-minute sync replaces the
+   * member status/activity snapshot too.
+   */
+
+  payload._meta = {
+    ...(payload._meta || {}),
+    fetched_at: fetchedAt,
+    members_synced_at: fetchedAt,
+    source: 'torn-api',
+    cached: false
+  };
+
   await env.DB.prepare(
     `
       INSERT INTO faction_snapshots
@@ -207,6 +222,9 @@ async function getCurrent(
       ...(payload._meta || {}),
       fetched_at:
         row.fetched_at,
+      members_synced_at:
+        payload._meta?.members_synced_at ||
+        row.fetched_at,
       cached: true,
       source: 'd1'
     }
@@ -255,9 +273,12 @@ async function fetchFaction(
     }
   }
 
+  const fetchedAt =
+    new Date().toISOString();
+
   normalized._meta = {
-    fetched_at:
-      new Date().toISOString(),
+    fetched_at: fetchedAt,
+    members_synced_at: fetchedAt,
     cached: false,
     source: 'torn-api',
     partial_failures: []
@@ -369,12 +390,16 @@ async function tornChainFetch(
       const result = {
         chain:
           data?.chain || {},
+
         chains:
           data?.chains || [],
+
         history:
           data?.chains || [],
+
         fetched_at:
           new Date().toISOString(),
+
         request_strategy:
           'live-chain-and-completed-chains'
       };
@@ -563,7 +588,9 @@ async function handleLiveChain(
   }
 }
 
-async function handleHealth(env) {
+async function handleHealth(
+  env
+) {
   let database = 'ok';
 
   try {
@@ -577,13 +604,20 @@ async function handleHealth(env) {
   return json({
     ok:
       database === 'ok',
+
     database,
+
     faction_id:
       factionId(
         env.FACTION_ID
       ),
+
     live_chain: true,
-    completed_chains: true
+
+    completed_chains: true,
+
+    member_sync:
+      '5-minute faction sync'
   });
 }
 
