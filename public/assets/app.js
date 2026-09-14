@@ -2,162 +2,33 @@ const CONFIG = {
   factionId: 53295,
   discordInvite: 'https://discord.gg/duHJkWRRT',
   tornStats: 'https://www.tornstats.com/factions/53295',
-
   refreshMs: 300000,
   chainRefreshMs: 5000,
   activityClockMs: 60000
 };
 
-const $ = selector =>
-  document.querySelector(selector);
+const $ = s => document.querySelector(s);
 
-const fmt = value => {
-  if (
-    value == null ||
-    value === '' ||
-    Number.isNaN(Number(value))
-  ) {
-    return '—';
-  }
+const fmt = n =>
+  n == null || n === '' || Number.isNaN(Number(n))
+    ? '—'
+    : Number(n).toLocaleString();
 
-  return Number(value).toLocaleString();
-};
-
-const esc = value =>
-  String(value ?? '').replace(
+const esc = s =>
+  String(s ?? '').replace(
     /[&<>"']/g,
-    char => ({
+    c => ({
       '&': '&amp;',
       '<': '&lt;',
       '>': '&gt;',
       '"': '&quot;',
       "'": '&#039;'
-    }[char])
+    }[c])
   );
 
-function get(object, ...paths) {
-  for (const path of paths) {
-    const value = path
-      .split('.')
-      .reduce(
-        (result, key) =>
-          result?.[key],
-        object
-      );
-
-    if (
-      value !== undefined &&
-      value !== null
-    ) {
-      return value;
-    }
-  }
-
-  return undefined;
-}
-
-function arr(value) {
-  if (Array.isArray(value)) {
-    return value;
-  }
-
-  if (
-    value &&
-    typeof value === 'object'
-  ) {
-    return Object.values(value);
-  }
-
-  return [];
-}
-
-
-/* =========================
-   DURATION
-========================= */
-
-function formatDuration(seconds) {
-
-  let total =
-    Number(seconds);
-
-  if (
-    !Number.isFinite(total) ||
-    total < 0
-  ) {
-    return '—';
-  }
-
-  total =
-    Math.floor(total);
-
-  const days =
-    Math.floor(
-      total / 86400
-    );
-
-  total %= 86400;
-
-  const hours =
-    Math.floor(
-      total / 3600
-    );
-
-  total %= 3600;
-
-  const minutes =
-    Math.floor(
-      total / 60
-    );
-
-  const secs =
-    total % 60;
-
-
-  const parts = [];
-
-  if (days) {
-    parts.push(
-      `${days}d`
-    );
-  }
-
-  if (hours) {
-    parts.push(
-      `${hours}h`
-    );
-  }
-
-  if (minutes) {
-    parts.push(
-      `${minutes}m`
-    );
-  }
-
-  if (
-    secs ||
-    !parts.length
-  ) {
-    parts.push(
-      `${secs}s`
-    );
-  }
-
-  return parts.join(' ');
-}
-
-
-/* =========================
-   GLOBAL DATA
-========================= */
-
 let DATA = {};
-let LIVE_CHAIN = null;
-
-
-/* =========================
-   LINKS
-========================= */
+let chainTimer = null;
+let activityTimer = null;
 
 const tornUrl =
   `https://www.torn.com/factions.php?step=profile&ID=${CONFIG.factionId}`;
@@ -166,251 +37,326 @@ const pdaUrl =
   `tornpda://factions.php?step=profile&ID=${CONFIG.factionId}`;
 
 function setLinks() {
+  ['tornBtn', 'heroTorn'].forEach(id => {
+    const el = $('#' + id);
+    if (el) el.href = tornUrl;
+  });
 
-  const links = {
-    tornBtn: tornUrl,
-    heroTorn: tornUrl,
-    pdaBtn: pdaUrl,
-    heroPda: pdaUrl,
-    discordBtn: CONFIG.discordInvite,
-    heroDiscord: CONFIG.discordInvite,
-    statsBtn: CONFIG.tornStats
-  };
+  ['pdaBtn', 'heroPda'].forEach(id => {
+    const el = $('#' + id);
+    if (el) el.href = pdaUrl;
+  });
 
-  Object.entries(
-    links
-  ).forEach(
-    ([id, url]) => {
+  const discordBtn = $('#discordBtn');
+  const heroDiscord = $('#heroDiscord');
+  const statsBtn = $('#statsBtn');
 
-      const element =
-        $('#' + id);
+  if (discordBtn) discordBtn.href = CONFIG.discordInvite;
+  if (heroDiscord) heroDiscord.href = CONFIG.discordInvite;
+  if (statsBtn) statsBtn.href = CONFIG.tornStats;
+}
 
-      if (element) {
-        element.href = url;
-      }
+function get(o, ...paths) {
+  for (const p of paths) {
+    const v = p
+      .split('.')
+      .reduce((a, k) => a?.[k], o);
 
+    if (v !== undefined && v !== null) {
+      return v;
     }
+  }
+
+  return undefined;
+}
+
+function arr(v) {
+  if (Array.isArray(v)) return v;
+
+  if (v && typeof v === 'object') {
+    return Object.values(v);
+  }
+
+  return [];
+}
+
+function fmtTime(v) {
+  if (v == null || v === '') {
+    return '—';
+  }
+
+  if (typeof v === 'number') {
+    try {
+      return new Date(v * 1000).toLocaleString();
+    } catch {}
+  }
+
+  return String(v);
+}
+
+function formatDuration(seconds) {
+  let n = Math.max(
+    0,
+    Math.floor(Number(seconds) || 0)
   );
-}
 
+  const d = Math.floor(n / 86400);
+  n %= 86400;
 
-/* =========================
-   GENERAL HELPERS
-========================= */
+  const h = Math.floor(n / 3600);
+  n %= 3600;
 
-function formatTime(value) {
-
-  if (
-    value == null ||
-    value === ''
-  ) {
-    return '—';
-  }
-
-  const number =
-    Number(value);
-
-  if (
-    Number.isFinite(number) &&
-    number > 1000000000
-  ) {
-    return new Date(
-      number * 1000
-    ).toLocaleString();
-  }
-
-  return String(value);
-}
-
-
-function formatAge(days) {
-
-  const number =
-    Number(days);
-
-  if (
-    !Number.isFinite(number) ||
-    number < 0
-  ) {
-    return '—';
-  }
-
-  const years =
-    Math.floor(
-      number / 365
-    );
-
-  const months =
-    Math.floor(
-      (number % 365) / 30
-    );
-
-  const remaining =
-    number % 30;
+  const m = Math.floor(n / 60);
+  const s = n % 60;
 
   const parts = [];
 
-  if (years) {
-    parts.push(
-      `${years}y`
-    );
-  }
+  if (d) parts.push(`${d}d`);
+  if (h || d) parts.push(`${h}h`);
+  if (m || h || d) parts.push(`${m}m`);
 
-  if (months) {
-    parts.push(
-      `${months}m`
-    );
-  }
+  parts.push(`${s}s`);
 
-  if (
-    remaining ||
-    !parts.length
-  ) {
-    parts.push(
-      `${remaining}d`
-    );
-  }
-
-  return `${parts.join(
-    ' '
-  )} (${fmt(
-    number
-  )} days)`;
+  return parts.join(' ');
 }
 
+function formatActivity(timestamp, relative) {
+  if (timestamp != null && timestamp !== '') {
+    const ts = Number(timestamp);
 
-/* =========================
-   FACTION INFO
-========================= */
-
-function factionRank(basic) {
-
-  const rank =
-    get(
-      basic,
-      'rank',
-      'faction_rank'
-    );
-
-  if (!rank) {
-    return '—';
-  }
-
-  if (
-    typeof rank === 'string'
-  ) {
-    return rank;
-  }
-
-  const name =
-    rank.name ||
-    rank.rank ||
-    rank.title;
-
-  const division =
-    rank.division;
-
-  if (
-    name &&
-    division != null
-  ) {
-    return `${name} ${division}`;
-  }
-
-  return name || '—';
-}
-
-
-function leaderName(
-  basic,
-  members
-) {
-
-  const leader =
-    get(
-      basic,
-      'leader',
-      'leader_id',
-      'leaderId'
-    );
-
-  if (
-    leader &&
-    typeof leader === 'object'
-  ) {
-
-    if (
-      leader.name ||
-      leader.username
-    ) {
-      return (
-        leader.name ||
-        leader.username
-      );
-    }
-
-    const id =
-      leader.id ??
-      leader.user_id ??
-      leader.player_id;
-
-    if (id) {
-
-      const member =
-        members.find(
-          member =>
-            String(
-              member.id ??
-              member.user_id ??
-              member.player_id
-            ) ===
-            String(id)
+    if (Number.isFinite(ts) && ts > 0) {
+      const diff =
+        Math.max(
+          0,
+          Math.floor(Date.now() / 1000) - ts
         );
 
-      return (
-        member?.name ||
-        member?.username ||
-        String(id)
-      );
+      if (diff < 60) {
+        return 'Active now';
+      }
+
+      if (diff < 3600) {
+        return `${Math.floor(diff / 60)}m ago`;
+      }
+
+      if (diff < 86400) {
+        const h = Math.floor(diff / 3600);
+        const m = Math.floor((diff % 3600) / 60);
+
+        return m
+          ? `${h}h ${m}m ago`
+          : `${h}h ago`;
+      }
+
+      const d = Math.floor(diff / 86400);
+
+      if (d < 30) {
+        return `${d}d ago`;
+      }
+
+      return new Date(ts * 1000).toLocaleDateString();
     }
   }
 
-  if (
-    leader != null
-  ) {
-
-    const member =
-      members.find(
-        member =>
-          String(
-            member.id ??
-            member.user_id ??
-            member.player_id
-          ) ===
-          String(leader)
-      );
-
-    return (
-      member?.name ||
-      member?.username ||
-      String(leader)
-    );
+  if (relative != null && relative !== '') {
+    return String(relative);
   }
 
   return '—';
 }
 
+function getMemberStatus(m) {
+  const state = String(
+    get(
+      m,
+      'status.state',
+      'status.status',
+      'status.description',
+      'state',
+      'status'
+    ) || ''
+  ).trim();
 
-/* =========================
-   CHAIN
-========================= */
+  const lower = state.toLowerCase();
 
-function chainState(chain) {
+  if (lower.includes('hospital')) {
+    return 'Hospital';
+  }
 
+  if (lower.includes('jail')) {
+    return 'Jail';
+  }
+
+  if (
+    lower.includes('abroad') ||
+    lower.includes('travel') ||
+    lower.includes('travelling') ||
+    lower.includes('traveling')
+  ) {
+    return 'Abroad';
+  }
+
+  if (
+    lower === 'online' ||
+    lower === 'active'
+  ) {
+    return 'Online';
+  }
+
+  if (
+    lower === 'okay' ||
+    lower === 'ok'
+  ) {
+    return 'OK';
+  }
+
+  if (lower) {
+    return state;
+  }
+
+  return 'Offline';
+}
+
+function getMemberActivity(m) {
+  const timestamp = get(
+    m,
+    'last_action.timestamp',
+    'last_action.time',
+    'last_action.unix'
+  );
+
+  const relative = get(
+    m,
+    'last_action.relative',
+    'last_action.description',
+    'last_action'
+  );
+
+  return {
+    timestamp,
+    relative
+  };
+}
+
+function memberActivityText(m) {
+  const activity = getMemberActivity(m);
+
+  return formatActivity(
+    activity.timestamp,
+    activity.relative
+  );
+}
+
+function stateCount(ms) {
+  return ms.filter(m => {
+    const status =
+      getMemberStatus(m).toLowerCase();
+
+    return [
+      'online',
+      'ok',
+      'active'
+    ].includes(status);
+  }).length;
+}
+
+function countStatus(ms, wanted) {
+  return ms.filter(m =>
+    getMemberStatus(m)
+      .toLowerCase() === wanted
+  ).length;
+}
+
+function leaderName(b) {
+  const leader = get(
+    b,
+    'leader.name',
+    'leader.username',
+    'leader',
+    'leader_name'
+  );
+
+  if (
+    leader &&
+    typeof leader === 'object'
+  ) {
+    return (
+      leader.name ||
+      leader.username ||
+      leader.id ||
+      '—'
+    );
+  }
+
+  return leader || '—';
+}
+
+function factionAge(b) {
+  const days = get(
+    b,
+    'days_old',
+    'age.days',
+    'age'
+  );
+
+  if (days != null) {
+    const n = Number(days);
+
+    if (Number.isFinite(n)) {
+      return `${fmt(n)} days`;
+    }
+  }
+
+  const created = get(
+    b,
+    'created',
+    'created_at'
+  );
+
+  return fmtTime(created);
+}
+
+function factionRank(b) {
+  const rank = get(
+    b,
+    'rank',
+    'rankedwar.rank'
+  );
+
+  if (!rank) {
+    return '—';
+  }
+
+  if (typeof rank === 'string') {
+    return rank;
+  }
+
+  if (typeof rank === 'object') {
+    const name =
+      rank.name ||
+      rank.rank ||
+      '';
+
+    const division =
+      rank.division ??
+      rank.position ??
+      '';
+
+    if (name && division !== '') {
+      return `${name} ${division}`;
+    }
+
+    return name || '—';
+  }
+
+  return String(rank);
+}
+
+function chainState(ch) {
   const current =
     Number(
       get(
-        chain,
+        ch,
         'current',
         'current_chain',
         'chain'
@@ -420,7 +366,7 @@ function chainState(chain) {
   const max =
     Number(
       get(
-        chain,
+        ch,
         'max',
         'max_chain'
       )
@@ -429,41 +375,40 @@ function chainState(chain) {
   const timeout =
     Number(
       get(
-        chain,
-        'timeout'
+        ch,
+        'timeout',
+        'chain.timeout'
       )
     ) || 0;
+
+  const cooldownRaw =
+    get(
+      ch,
+      'cooldown',
+      'chain.cooldown'
+    );
 
   const cooldown =
-    Number(
-      get(
-        chain,
-        'cooldown'
-      )
-    ) || 0;
+    Number(cooldownRaw) || 0;
 
   const now =
-    Math.floor(
-      Date.now() / 1000
-    );
+    Math.floor(Date.now() / 1000);
+
+  const cooldownRemaining =
+    cooldown > now
+      ? cooldown - now
+      : 0;
 
   return {
     current,
     max,
     timeout,
     cooldown,
-    cooldownRemaining:
-      cooldown > now
-        ? cooldown - now
-        : 0
+    cooldownRemaining
   };
 }
 
-
-function nextChainMilestone(
-  current
-) {
-
+function nextChainMilestone(current) {
   const milestones = [
     10,
     25,
@@ -481,27 +426,20 @@ function nextChainMilestone(
   ];
 
   return milestones.find(
-    milestone =>
-      milestone > current
+    n => n > current
   ) || null;
 }
 
-
-function renderChain(chain) {
-
-  const state =
-    chainState(
-      chain || {}
-    );
+function renderChain(ch) {
+  const state = chainState(ch);
 
   const next =
     nextChainMilestone(
       state.current
     );
 
-  const active =
-    state.current > 0 &&
-    state.cooldownRemaining === 0;
+  const live =
+    state.timeout > 0;
 
   const cooldown =
     state.cooldownRemaining > 0;
@@ -509,2374 +447,878 @@ function renderChain(chain) {
   const phase =
     cooldown
       ? 'COOLDOWN'
-      : active
+      : live
         ? 'ACTIVE'
         : 'WAITING';
 
+  const phaseEl = $('#chainPhase');
 
-  const commandChain =
-    $('#commandChain');
-
-  if (commandChain) {
-    commandChain.textContent =
-      fmt(
-        state.current
-      );
+  if (phaseEl) {
+    phaseEl.textContent = phase;
+    phaseEl.className =
+      `chain-phase ${phase.toLowerCase()}`;
   }
 
+  const big = $('#chainBig');
 
-  const chainBig =
-    $('#chainBig');
-
-  if (chainBig) {
-    chainBig.textContent =
-      fmt(
-        state.current
-      );
+  if (big) {
+    big.textContent =
+      fmt(state.current);
   }
 
-
-  const phaseElement =
-    $('#chainPhase');
-
-  if (phaseElement) {
-
-    phaseElement.textContent =
-      phase;
-
-    phaseElement.className =
-      `chain-phase ${
-        phase.toLowerCase()
-      }`;
-  }
-
-
-  const bar =
-    $('#chainBar');
+  const bar = $('#chainBar');
 
   if (bar) {
-
-    const percentage =
-      state.max > 0
-        ? Math.min(
-            100,
-            (
-              state.current /
-              state.max
-            ) * 100
-          )
-        : 0;
-
     bar.style.width =
-      `${percentage}%`;
+      (
+        state.max
+          ? Math.min(
+              100,
+              state.current /
+                state.max *
+                100
+            )
+          : 0
+      ) + '%';
   }
 
+  const timeout = $('#chainTimeout');
 
-  const timeoutElement =
-    $('#chainTimeout');
-
-  if (timeoutElement) {
-
-    timeoutElement.textContent =
-      state.timeout > 0
-        ? `Next hit ${formatDuration(
-            state.timeout
-          )}`
-        : active
-          ? 'Chain active'
-          : 'Next hit —';
+  if (timeout) {
+    timeout.textContent =
+      live
+        ? `Next hit ${formatDuration(state.timeout)}`
+        : 'Next hit —';
   }
 
-
-  const cooldownElement =
+  const cooldownEl =
     $('#chainCooldown');
 
-  if (cooldownElement) {
-
-    cooldownElement.textContent =
+  if (cooldownEl) {
+    cooldownEl.textContent =
       cooldown
-        ? `Cooldown ${formatDuration(
-            state.cooldownRemaining
-          )}`
+        ? `Cooldown ${formatDuration(state.cooldownRemaining)}`
         : 'Cooldown —';
   }
 
+  const rows = [
+    [
+      'Current chain',
+      fmt(state.current)
+    ],
+    [
+      'Chain target',
+      state.max
+        ? fmt(state.max)
+        : '—'
+    ],
+    [
+      'Next bonus hit',
+      next
+        ? fmt(next)
+        : 'Maximum reached'
+    ],
+    [
+      'Progress',
+      state.max
+        ? `${Math.min(
+            100,
+            state.current /
+              state.max *
+              100
+          ).toFixed(1)}%`
+        : '—'
+    ],
+    [
+      'Timeout',
+      live
+        ? formatDuration(
+            state.timeout
+          )
+        : '—'
+    ],
+    [
+      'Cooldown',
+      cooldown
+        ? formatDuration(
+            state.cooldownRemaining
+          )
+        : '—'
+    ],
+    [
+      'Chain ID',
+      get(ch, 'id') ?? '—'
+    ],
+    [
+      'Modifier',
+      get(ch, 'modifier') ?? '—'
+    ]
+  ];
 
   const details =
     $('#chainDetails');
 
   if (details) {
-
-    const rows = [
-
-      [
-        'Current chain',
-        fmt(
-          state.current
-        )
-      ],
-
-      [
-        'Chain target',
-        state.max
-          ? fmt(
-              state.max
-            )
-          : '—'
-      ],
-
-      [
-        'Next bonus hit',
-        next
-          ? fmt(next)
-          : 'Maximum reached'
-      ],
-
-      [
-        'Progress',
-        state.max
-          ? `${Math.min(
-              100,
-              (
-                state.current /
-                state.max
-              ) * 100
-            ).toFixed(1)}%`
-          : '—'
-      ],
-
-      [
-        'Timeout',
-        state.timeout
-          ? formatDuration(
-              state.timeout
-            )
-          : '—'
-      ],
-
-      [
-        'Cooldown',
-        cooldown
-          ? formatDuration(
-              state.cooldownRemaining
-            )
-          : '—'
-      ],
-
-      [
-        'Chain ID',
-        get(
-          chain,
-          'id'
-        ) ?? '—'
-      ],
-
-      [
-        'Modifier',
-        get(
-          chain,
-          'modifier'
-        ) ?? '—'
-      ],
-
-      [
-        'Started',
-        formatTime(
-          get(
-            chain,
-            'start',
-            'started_at'
-          )
-        )
-      ],
-
-      [
-        'Ends',
-        formatTime(
-          get(
-            chain,
-            'end',
-            'ended_at'
-          )
-        )
-      ]
-
-    ];
-
     details.innerHTML =
       rows
         .map(
-          row =>
+          x =>
             `<div class="list-row">
-
-              <span>
-                ${esc(
-                  row[0]
-                )}
-              </span>
-
-              <b>
-                ${esc(
-                  row[1]
-                )}
-              </b>
-
+              <span>${esc(x[0])}</span>
+              <b>${esc(x[1])}</b>
             </div>`
         )
         .join('');
   }
 }
 
+function updateMemberActivityClock() {
+  if (!DATA) return;
 
-/* =========================
-   PREVIOUS CHAINS
-========================= */
-
-function normalizeCompletedChains(
-  source
-) {
-
-  if (!source) {
-    return [];
-  }
-
-  if (
-    Array.isArray(source)
-  ) {
-    return source;
-  }
-
-  if (
-    source.chains
-  ) {
-    return arr(
-      source.chains
+  const ms =
+    arr(
+      DATA.members?.members ||
+      DATA.members
     );
-  }
 
-  if (
-    source.data?.chains
-  ) {
-    return arr(
-      source.data.chains
-    );
-  }
+  if (!ms.length) return;
 
-  if (
-    typeof source === 'object'
-  ) {
-    return Object.values(
-      source
-    );
-  }
-
-  return [];
+  renderMembers(ms);
 }
 
-
-function chainRecordValue(
-  chain,
-  ...paths
-) {
-
-  return get(
-    chain,
-    ...paths
-  );
+function updateChainClock() {
+  if (DATA?.chain) {
+    renderChain(DATA.chain);
+  }
 }
 
+function renderMembers(ms) {
+  const search =
+    ($('#memberSearch')?.value || '')
+      .toLowerCase();
 
-function renderCompletedChains(
-  source
-) {
-
-  const chains =
-    normalizeCompletedChains(
-      source
+  const rows =
+    ms.filter(m =>
+      JSON.stringify(m)
+        .toLowerCase()
+        .includes(search)
     );
-
-  let container =
-    $('#completedChains');
-
-
-  if (!container) {
-
-    const chainSection =
-      $('#chain');
-
-    if (!chainSection) {
-      return;
-    }
-
-    container =
-      document.createElement(
-        'article'
-      );
-
-    container.id =
-      'completedChains';
-
-    container.className =
-      'panel';
-
-    container.style.marginTop =
-      '18px';
-
-    chainSection.appendChild(
-      container
-    );
-  }
-
-
-  const sorted =
-    [...chains]
-      .sort(
-        (a, b) => {
-
-          const aTime =
-            Number(
-              chainRecordValue(
-                a,
-                'end',
-                'ended_at',
-                'completed_at'
-              )
-            ) || 0;
-
-          const bTime =
-            Number(
-              chainRecordValue(
-                b,
-                'end',
-                'ended_at',
-                'completed_at'
-              )
-            ) || 0;
-
-          return (
-            bTime -
-            aTime
-          );
-        }
-      );
-
-
-  container.innerHTML = `
-
-    <div class="panel-head">
-
-      <div>
-
-        <h2>
-          Previous Chains
-        </h2>
-
-        <span class="muted">
-          Completed faction chains
-        </span>
-
-      </div>
-
-      <span>
-        ${fmt(
-          sorted.length
-        )}
-      </span>
-
-    </div>
-
-    ${
-      sorted.length
-        ? `
-
-          <div class="table-wrap">
-
-            <table>
-
-              <thead>
-
-                <tr>
-                  <th>Chain</th>
-                  <th>Chain ID</th>
-                  <th>Start</th>
-                  <th>End</th>
-                  <th>Duration</th>
-                </tr>
-
-              </thead>
-
-              <tbody>
-
-                ${sorted
-                  .slice(
-                    0,
-                    100
-                  )
-                  .map(
-                    chain => {
-
-                      const count =
-                        chainRecordValue(
-                          chain,
-                          'chain',
-                          'count',
-                          'hits',
-                          'total',
-                          'chain_length',
-                          'length'
-                        );
-
-                      const id =
-                        chainRecordValue(
-                          chain,
-                          'id',
-                          'chain_id'
-                        );
-
-                      const start =
-                        chainRecordValue(
-                          chain,
-                          'start',
-                          'started_at',
-                          'start_time'
-                        );
-
-                      const end =
-                        chainRecordValue(
-                          chain,
-                          'end',
-                          'ended_at',
-                          'end_time',
-                          'completed_at'
-                        );
-
-                      let duration =
-                        chainRecordValue(
-                          chain,
-                          'duration'
-                        );
-
-                      if (
-                        duration == null &&
-                        Number(start) &&
-                        Number(end)
-                      ) {
-
-                        duration =
-                          formatDuration(
-                            Number(end) -
-                            Number(start)
-                          );
-                      }
-
-                      return `
-
-                        <tr>
-
-                          <td>
-                            <b>
-                              ${esc(
-                                fmt(
-                                  count
-                                )
-                              )}
-                            </b>
-                          </td>
-
-                          <td>
-                            ${esc(
-                              id ??
-                              '—'
-                            )}
-                          </td>
-
-                          <td>
-                            ${esc(
-                              formatTime(
-                                start
-                              )
-                            )}
-                          </td>
-
-                          <td>
-                            ${esc(
-                              formatTime(
-                                end
-                              )
-                            )}
-                          </td>
-
-                          <td>
-                            ${esc(
-                              duration ??
-                              '—'
-                            )}
-                          </td>
-
-                        </tr>
-
-                      `;
-                    }
-                  )
-                  .join('')}
-
-              </tbody>
-
-            </table>
-
-          </div>
-
-        `
-        : `
-
-          <div style="
-            padding:18px;
-            color:#777;
-          ">
-            No completed chains returned.
-          </div>
-
-        `
-    }
-
-  `;
-}
-
-
-/* =========================
-   MEMBER STATUS
-========================= */
-
-function getMemberStatus(
-  member
-) {
-
-  const statusObject =
-    get(
-      member,
-      'status'
-    );
-
-  const state =
-    String(
-      get(
-        member,
-        'status.state',
-        'status.status',
-        'state',
-        'status'
-      ) || ''
-    ).toLowerCase();
-
-  const description =
-    String(
-      get(
-        member,
-        'status.description',
-        'status.desc',
-        'description'
-      ) || ''
-    ).toLowerCase();
-
-  const combined =
-    `${state} ${description}`;
-
-
-  if (
-    combined.includes(
-      'hospital'
-    ) ||
-    combined.includes(
-      'hospitalized'
-    ) ||
-    combined.includes(
-      'hospitalised'
-    )
-  ) {
-    return {
-      label: 'Hospital',
-      type: 'hospital'
-    };
-  }
-
-
-  if (
-    combined.includes(
-      'jail'
-    ) ||
-    combined.includes(
-      'jailed'
-    ) ||
-    combined.includes(
-      'prison'
-    )
-  ) {
-    return {
-      label: 'Jail',
-      type: 'jail'
-    };
-  }
-
-
-  if (
-    combined.includes(
-      'abroad'
-    ) ||
-    combined.includes(
-      'travel'
-    ) ||
-    combined.includes(
-      'travelling'
-    ) ||
-    combined.includes(
-      'traveling'
-    )
-  ) {
-    return {
-      label: 'Abroad',
-      type: 'abroad'
-    };
-  }
-
-
-  if (
-    combined.includes(
-      'online'
-    )
-  ) {
-    return {
-      label: 'Online',
-      type: 'online'
-    };
-  }
-
-
-  if (
-    combined === 'okay' ||
-    combined.includes(
-      'okay'
-    )
-  ) {
-    return {
-      label: 'Okay',
-      type: 'okay'
-    };
-  }
-
-
-  if (
-    combined.includes(
-      'active'
-    )
-  ) {
-    return {
-      label: 'Active',
-      type: 'active'
-    };
-  }
-
-
-  if (
-    combined.includes(
-      'offline'
-    ) ||
-    combined.includes(
-      'inactive'
-    )
-  ) {
-    return {
-      label: 'Offline',
-      type: 'offline'
-    };
-  }
-
-
-  if (
-    statusObject &&
-    typeof statusObject ===
-      'object'
-  ) {
-
-    const fallback =
-      statusObject.state ||
-      statusObject.description;
-
-    if (fallback) {
-
-      return {
-        label:
-          String(
-            fallback
-          ),
-
-        type:
-          String(
-            fallback
-          )
-            .toLowerCase()
-            .replace(
-              /[^a-z0-9]+/g,
-              '-'
-            )
-      };
-    }
-  }
-
-
-  return {
-    label: 'Offline',
-    type: 'offline'
-  };
-}
-
-
-/* =========================
-   MEMBER ACTIVITY
-========================= */
-
-function memberActivityTimestamp(
-  member
-) {
-
-  const last =
-    get(
-      member,
-      'last_action'
-    );
-
-
-  const timestamp =
-    get(
-      member,
-      'last_action.timestamp',
-      'last_action.time',
-      'last_action.last_action',
-      'last_action_at',
-      'last_active'
-    );
-
-
-  if (
-    timestamp != null
-  ) {
-
-    const number =
-      Number(
-        timestamp
-      );
-
-    if (
-      Number.isFinite(
-        number
-      )
-    ) {
-
-      if (
-        number > 1000000000
-      ) {
-        return (
-          number *
-          1000
-        );
-      }
-
-      return number;
-    }
-  }
-
-
-  if (
-    typeof last ===
-      'string'
-  ) {
-
-    const parsed =
-      Date.parse(
-        last
-      );
-
-    if (
-      Number.isFinite(
-        parsed
-      )
-    ) {
-      return parsed;
-    }
-  }
-
-
-  return null;
-}
-
-
-function parseRelativeActivity(
-  value
-) {
-
-  if (
-    value == null
-  ) {
-    return null;
-  }
-
-  const text =
-    String(
-      value
-    )
-      .toLowerCase()
-      .trim();
-
-
-  if (!text) {
-    return null;
-  }
-
-
-  if (
-    text.includes(
-      'online'
-    ) ||
-    text.includes(
-      'just now'
-    )
-  ) {
-    return Date.now();
-  }
-
-
-  const match =
-    text.match(
-      /(\d+(?:\.\d+)?)\s*(second|seconds|sec|secs|minute|minutes|min|mins|hour|hours|hr|hrs|day|days|week|weeks|month|months|year|years)/
-    );
-
-
-  if (!match) {
-    return null;
-  }
-
-
-  const amount =
-    Number(
-      match[1]
-    );
-
-  const unit =
-    match[2];
-
-
-  const multipliers = {
-
-    second:
-      1000,
-
-    seconds:
-      1000,
-
-    sec:
-      1000,
-
-    secs:
-      1000,
-
-    minute:
-      60000,
-
-    minutes:
-      60000,
-
-    min:
-      60000,
-
-    mins:
-      60000,
-
-    hour:
-      3600000,
-
-    hours:
-      3600000,
-
-    hr:
-      3600000,
-
-    hrs:
-      3600000,
-
-    day:
-      86400000,
-
-    days:
-      86400000,
-
-    week:
-      604800000,
-
-    weeks:
-      604800000,
-
-    month:
-      2592000000,
-
-    months:
-      2592000000,
-
-    year:
-      31536000000,
-
-    years:
-      31536000000
-
-  };
-
-
-  const multiplier =
-    multipliers[unit];
-
-
-  if (
-    !multiplier
-  ) {
-    return null;
-  }
-
-
-  return (
-    Date.now() -
-    (
-      amount *
-      multiplier
-    )
-  );
-}
-
-
-function getMemberActivity(
-  member
-) {
-
-  const timestamp =
-    memberActivityTimestamp(
-      member
-    );
-
-
-  if (
-    timestamp != null
-  ) {
-    return timestamp;
-  }
-
-
-  return parseRelativeActivity(
-    get(
-      member,
-      'last_action.relative',
-      'last_action.description',
-      'activity',
-      'last_activity'
-    )
-  );
-}
-
-
-function formatRelativeActivity(
-  timestamp
-) {
-
-  if (
-    timestamp == null
-  ) {
-    return 'No activity data';
-  }
-
-
-  const elapsed =
-    Math.max(
-      0,
-      Date.now() -
-      Number(timestamp)
-    );
-
-
-  const seconds =
-    Math.floor(
-      elapsed / 1000
-    );
-
-
-  if (
-    seconds < 60
-  ) {
-    return 'Active now';
-  }
-
-
-  const minutes =
-    Math.floor(
-      seconds / 60
-    );
-
-
-  if (
-    minutes < 60
-  ) {
-    return `${minutes}m ago`;
-  }
-
-
-  const hours =
-    Math.floor(
-      minutes / 60
-    );
-
-
-  if (
-    hours < 24
-  ) {
-
-    const remaining =
-      minutes % 60;
-
-    return remaining
-      ? `${hours}h ${remaining}m ago`
-      : `${hours}h ago`;
-  }
-
-
-  const days =
-    Math.floor(
-      hours / 24
-    );
-
-
-  if (
-    days < 30
-  ) {
-    return `${days}d ago`;
-  }
-
-
-  const months =
-    Math.floor(
-      days / 30
-    );
-
-
-  if (
-    months < 12
-  ) {
-    return `${months}mo ago`;
-  }
-
-
-  const years =
-    Math.floor(
-      months / 12
-    );
-
-
-  return `${years}y ago`;
-}
-
-
-/* =========================
-   MEMBER SORTING
-========================= */
-
-function memberSortScore(
-  member
-) {
-
-  const status =
-    getMemberStatus(
-      member
-    );
-
-
-  const priority = {
-
-    online: 0,
-    active: 1,
-    okay: 2,
-    hospital: 3,
-    abroad: 4,
-    jail: 5,
-    offline: 6
-
-  };
-
-
-  return (
-    priority[
-      status.type
-    ] ??
-    7
-  );
-}
-
-
-function sortMembers(
-  members
-) {
-
-  return [
-    ...members
-  ].sort(
-    (a, b) => {
-
-      const statusA =
-        memberSortScore(
-          a
-        );
-
-      const statusB =
-        memberSortScore(
-          b
-        );
-
-
-      if (
-        statusA !==
-        statusB
-      ) {
-        return (
-          statusA -
-          statusB
-        );
-      }
-
-
-      const activityA =
-        getMemberActivity(
-          a
-        ) || 0;
-
-
-      const activityB =
-        getMemberActivity(
-          b
-        ) || 0;
-
-
-      return (
-        activityB -
-        activityA
-      );
-    }
-  );
-}
-
-
-/* =========================
-   MEMBER COUNTERS
-========================= */
-
-function getMemberCounts(
-  members
-) {
-
-  const counts = {
-
-    total:
-      members.length,
-
-    online: 0,
-
-    active: 0,
-
-    okay: 0,
-
-    offline: 0,
-
-    hospital: 0,
-
-    abroad: 0,
-
-    jail: 0
-
-  };
-
-
-  members.forEach(
-    member => {
-
-      const status =
-        getMemberStatus(
-          member
-        );
-
-
-      if (
-        counts[
-          status.type
-        ] !== undefined
-      ) {
-
-        counts[
-          status.type
-        ]++;
-
-      }
-
-    }
-  );
-
-
-  return counts;
-}
-
-
-/* =========================
-   MEMBERS TABLE
-========================= */
-
-function renderMembers(
-  members
-) {
 
   const table =
     $('#membersTable');
 
+  if (!table) return;
 
-  if (!table) {
-    return;
-  }
-
-
-  const query =
-    (
-      $('#memberSearch')
-        ?.value ||
-      ''
-    )
-      .trim()
-      .toLowerCase();
-
-
-  const filtered =
-    members.filter(
-      member => {
-
-        if (!query) {
-          return true;
-        }
-
-        return JSON.stringify(
-          member
-        )
-          .toLowerCase()
-          .includes(
-            query
-          );
-      }
+  /*
+   * The original HTML has a Life column.
+   * We do not use it anymore because the
+   * member dashboard was changed to show
+   * activity/status instead.
+   */
+  const header =
+    document.querySelector(
+      '#members thead tr'
     );
 
+  if (header) {
+    const headers =
+      header.querySelectorAll('th');
 
-  const sorted =
-    sortMembers(
-      filtered
-    );
+    if (headers[3]) {
+      headers[3].textContent =
+        'Status';
+    }
 
+    if (headers[4]) {
+      headers[4].textContent =
+        'Activity';
+    }
 
-  const counts =
-    getMemberCounts(
-      members
-    );
-
-
-  const memberOnline =
-    $('#memberOnline');
-
-  if (memberOnline) {
-    memberOnline.textContent =
-      fmt(
-        counts.online
-      );
+    if (headers[5]) {
+      headers[5].textContent =
+        'State';
+    }
   }
-
-
-  const memberOffline =
-    $('#memberOffline');
-
-  if (memberOffline) {
-    memberOffline.textContent =
-      fmt(
-        counts.offline
-      );
-  }
-
-
-  const memberHospital =
-    $('#memberHospital');
-
-  if (memberHospital) {
-    memberHospital.textContent =
-      fmt(
-        counts.hospital
-      );
-  }
-
-
-  const memberAbroad =
-    $('#memberAbroad');
-
-  if (memberAbroad) {
-    memberAbroad.textContent =
-      fmt(
-        counts.abroad
-      );
-  }
-
-
-  const memberJail =
-    $('#memberJail');
-
-  if (memberJail) {
-    memberJail.textContent =
-      fmt(
-        counts.jail
-      );
-  }
-
 
   table.innerHTML =
-    sorted
-      .map(
-        member => {
+    rows
+      .map(m => {
+        const status =
+          getMemberStatus(m);
 
-          const status =
-            getMemberStatus(
-              member
+        const activity =
+          memberActivityText(m);
+
+        const cls =
+          status
+            .toLowerCase()
+            .replace(
+              /[^a-z0-9]+/g,
+              '-'
             );
 
-
-          const activity =
-            getMemberActivity(
-              member
-            );
-
-
-          const id =
-            member.id ??
-            member.user_id ??
-            member.player_id;
-
-
-          const name =
-            member.name ||
-            member.username ||
-            id ||
-            'Unknown';
-
-
-          const level =
-            member.level ??
-            '—';
-
-
-          const position =
-            get(
-              member,
-              'position.name',
-              'position',
-              'role'
-            ) ||
-            '—';
-
-
-          const statusClass =
-            status.type
-              .toLowerCase()
-              .replace(
-                /[^a-z0-9]+/g,
-                '-'
-              );
-
-
-          return `
-
-            <tr>
-
-              <td>
-
-                <a
-                  href="https://www.torn.com/profiles.php?XID=${encodeURIComponent(
-                    id ?? ''
-                  )}"
-                  target="_blank"
-                  rel="noopener"
-                >
-                  ${esc(name)}
-                </a>
-
-              </td>
-
-
-              <td>
-                ${esc(level)}
-              </td>
-
-
-              <td>
-                ${esc(position)}
-              </td>
-
-
-              <td>
-
-                <span
-                  class="pill status-${esc(
-                    statusClass
-                  )}"
-                >
-                  ${esc(
-                    status.label
-                  )}
-                </span>
-
-              </td>
-
-
-              <td
-                class="member-activity"
-                data-activity-ts="${
-                  activity ??
-                  ''
-                }"
-              >
-                ${esc(
-                  formatRelativeActivity(
-                    activity
-                  )
-                )}
-              </td>
-
-            </tr>
-
-          `;
-        }
-      )
-      .join('') ||
-
-    `
-      <tr>
-
-        <td colspan="5">
-          No member data returned.
-        </td>
-
-      </tr>
-    `;
-}
-
-
-/* =========================
-   LOCAL ACTIVITY CLOCK
-========================= */
-
-function updateMemberActivityClock() {
-
-  document
-    .querySelectorAll(
-      '.member-activity[data-activity-ts]'
-    )
-    .forEach(
-      element => {
-
-        const timestamp =
-          Number(
-            element.dataset
-              .activityTs
-          );
-
-
-        if (
-          !Number.isFinite(
-            timestamp
-          )
-        ) {
-          return;
-        }
-
-
-        element.textContent =
-          formatRelativeActivity(
-            timestamp
-          );
-      }
-    );
-}
-
-
-/* =========================
-   READINESS
-========================= */
-
-function calculateReadiness(
-  members,
-  crimes,
-  chain,
-  rankedWar
-) {
-
-  const memberCount =
-    members.length;
-
-
-  const counts =
-    getMemberCounts(
-      members
-    );
-
-
-  const activeMembers =
-    counts.online +
-    counts.active;
-
-
-  const chainValue =
-    Number(
-      get(
-        chain,
-        'current'
-      )
-    ) || 0;
-
-
-  const memberScore =
-    memberCount > 0
-      ? Math.min(
-          1,
-          activeMembers /
-          memberCount
-        ) * 40
-      : 0;
-
-
-  const chainScore =
-    Math.min(
-      1,
-      chainValue / 100
-    ) * 40;
-
-
-  const warScore =
-    rankedWar
-      ? 20
-      : 0;
-
-
-  return Math.min(
-    100,
-    Math.round(
-      memberScore +
-      chainScore +
-      warScore
-    )
-  );
-}
-
-
-function renderReadiness(
-  members,
-  crimes,
-  chain,
-  rankedWar
-) {
-
-  const readiness =
-    calculateReadiness(
-      members,
-      crimes,
-      chain,
-      rankedWar
-    );
-
-
-  if ($('#readiness')) {
-    $('#readiness').textContent =
-      `${readiness}%`;
-  }
-
-
-  if ($('#readinessTitle')) {
-
-    $('#readinessTitle')
-      .textContent =
-        readiness >= 75
-          ? 'Combat ready'
-          : readiness >= 45
-            ? 'Operational'
-            : 'Standby';
-  }
-
-
-  if ($('#readinessText')) {
-
-    $('#readinessText')
-      .textContent =
-        `${members.length} members tracked • ` +
-        `${crimes.length} OC records • ` +
-        `${fmt(
+        const id =
+          m.id ??
+          m.user_id ??
+          '';
+
+        const name =
+          m.name ||
+          m.username ||
+          id ||
+          'Unknown';
+
+        const position =
           get(
-            chain,
-            'current'
-          ) || 0
-        )} current chain`;
-  }
+            m,
+            'position.name',
+            'position',
+            'role'
+          ) || '—';
+
+        return `
+          <tr>
+            <td>
+              <a
+                href="https://www.torn.com/profiles.php?XID=${encodeURIComponent(id)}"
+                target="_blank"
+                rel="noopener"
+              >${esc(name)}</a>
+            </td>
+
+            <td>${esc(m.level ?? '—')}</td>
+
+            <td>${esc(position)}</td>
+
+            <td>
+              <span class="pill status-${esc(cls)}">
+                ${esc(status)}
+              </span>
+            </td>
+
+            <td>${esc(activity)}</td>
+
+            <td>
+              <span class="pill status-${esc(cls)}">
+                ${esc(status)}
+              </span>
+            </td>
+          </tr>
+        `;
+      })
+      .join('') ||
+    '<tr><td colspan="6">No member data returned.</td></tr>';
 }
 
+function renderCrimes(cs) {
+  const note =
+    $('#ocNote');
 
-/* =========================
-   ARMORY
-========================= */
+  if (note) {
+    note.textContent =
+      `${cs.length} records`;
+  }
 
-function renderArmory(
-  items
-) {
+  const table =
+    $('#crimesTable');
+
+  if (!table) return;
+
+  table.innerHTML =
+    cs
+      .slice(0, 150)
+      .map(c => `
+        <tr>
+          <td>
+            ${esc(
+              c.name ||
+              c.crime_name ||
+              c.id ||
+              'OC'
+            )}
+          </td>
+
+          <td>
+            <span class="pill">
+              ${esc(
+                c.status ||
+                c.state ||
+                '—'
+              )}
+            </span>
+          </td>
+
+          <td>
+            ${esc(
+              fmtTime(
+                c.created_at ||
+                c.created
+              )
+            )}
+          </td>
+
+          <td>
+            ${fmt(
+              arr(
+                c.participants ||
+                c.slots
+              ).length
+            )}
+          </td>
+
+          <td>
+            ${esc(
+              c.difficulty ||
+              c.success ||
+              '—'
+            )}
+          </td>
+        </tr>
+      `)
+      .join('') ||
+    '<tr><td colspan="5">No OC data returned. The API key may not have the required faction selection.</td></tr>';
+}
+
+function renderArmory(items) {
+  const search =
+    ($('#armorySearch')?.value || '')
+      .toLowerCase();
 
   const table =
     $('#armoryTable');
 
-
-  if (!table) {
-    return;
-  }
-
-
-  const query =
-    (
-      $('#armorySearch')
-        ?.value ||
-      ''
-    )
-      .toLowerCase();
-
+  if (!table) return;
 
   table.innerHTML =
     items
-      .filter(
-        item =>
-          JSON.stringify(
-            item
-          )
-            .toLowerCase()
-            .includes(
-              query
-            )
+      .filter(i =>
+        JSON.stringify(i)
+          .toLowerCase()
+          .includes(search)
       )
-      .slice(
-        0,
-        300
-      )
-      .map(
-        item =>
-          `<tr>
+      .slice(0, 300)
+      .map(i => `
+        <tr>
+          <td>
+            ${esc(
+              i.name ||
+              i.item_name ||
+              i.id ||
+              'Item'
+            )}
+          </td>
 
-            <td>
-              ${esc(
-                item.name ||
-                item.item_name ||
-                item.id ||
-                'Item'
-              )}
-            </td>
+          <td>
+            ${esc(
+              i.type ||
+              i.category ||
+              '—'
+            )}
+          </td>
 
-            <td>
-              ${esc(
-                item.type ||
-                item.category ||
-                '—'
-              )}
-            </td>
+          <td>
+            ${fmt(
+              i.quantity ??
+              i.qty ??
+              i.amount
+            )}
+          </td>
 
-            <td>
-              ${fmt(
-                item.quantity ??
-                item.qty ??
-                item.amount
-              )}
-            </td>
-
-            <td>
-              ${esc(
-                item.id ??
-                '—'
-              )}
-            </td>
-
-          </tr>`
-      )
+          <td>
+            ${esc(i.id ?? '—')}
+          </td>
+        </tr>
+      `)
       .join('') ||
-
-    '<tr><td colspan="4">Armory inventory is unavailable.</td></tr>';
+    '<tr><td colspan="4">Armory inventory is unavailable from this API selection.</td></tr>';
 }
 
-
-/* =========================
-   WAR
-========================= */
-
-function renderWar(
-  war
-) {
-
-  const container =
-    $('#warInfo');
-
-
-  if (!container) {
-    return;
-  }
-
-
-  const record =
+function renderWar(w) {
+  const r =
     get(
-      war,
+      w,
       'war',
       'current',
       'rankedwar'
-    ) || war;
-
+    ) || w;
 
   const entries =
-    Object.entries(
-      record || {}
-    )
+    Object.entries(r || {})
       .filter(
-        ([, value]) =>
-          typeof value !==
-          'object'
+        ([, v]) =>
+          typeof v !== 'object'
       )
-      .slice(
-        0,
-        24
-      );
+      .slice(0, 24);
 
+  const badge =
+    $('#warBadge');
 
-  if ($('#warBadge')) {
-
-    $('#warBadge')
-      .textContent =
-        entries.length
-          ? 'DATA'
-          : 'NO ACTIVE DATA';
+  if (badge) {
+    badge.textContent =
+      r &&
+      Object.keys(r).length
+        ? 'DATA'
+        : 'NO ACTIVE DATA';
   }
 
+  const info =
+    $('#warInfo');
 
-  container.innerHTML =
+  if (!info) return;
+
+  info.innerHTML =
     entries
       .map(
-        ([key, value]) =>
+        ([k, v]) =>
           `<div class="list-row">
-
-            <span>
-              ${esc(
-                key.replaceAll(
-                  '_',
-                  ' '
-                )
-              )}
-            </span>
-
-            <b>
-              ${esc(value)}
-            </b>
-
+            <span>${esc(
+              k.replaceAll('_', ' ')
+            )}</span>
+            <b>${esc(v)}</b>
           </div>`
       )
       .join('') ||
-
     '<div class="empty">No ranked-war data returned.</div>';
 }
 
+function renderTerritory(t) {
+  const entries =
+    Object.entries(t || {})
+      .filter(
+        ([, v]) =>
+          typeof v !== 'object'
+      )
+      .slice(0, 24);
 
-/* =========================
-   TERRITORY
-========================= */
-
-function renderTerritory(
-  territory
-) {
-
-  const container =
+  const info =
     $('#territoryInfo');
 
+  if (!info) return;
 
-  if (!container) {
-    return;
-  }
-
-
-  const entries =
-    Object.entries(
-      territory || {}
-    )
-      .filter(
-        ([, value]) =>
-          typeof value !==
-          'object'
-      )
-      .slice(
-        0,
-        24
-      );
-
-
-  container.innerHTML =
+  info.innerHTML =
     entries
       .map(
-        ([key, value]) =>
+        ([k, v]) =>
           `<div class="list-row">
-
-            <span>
-              ${esc(
-                key.replaceAll(
-                  '_',
-                  ' '
-                )
-              )}
-            </span>
-
-            <b>
-              ${esc(value)}
-            </b>
-
+            <span>${esc(
+              k.replaceAll('_', ' ')
+            )}</span>
+            <b>${esc(v)}</b>
           </div>`
       )
       .join('') ||
-
     '<div class="empty">No territory data returned.</div>';
 }
 
-
-/* =========================
-   UPGRADES
-========================= */
-
-function renderUpgrades(
-  upgrades
-) {
-
-  const container =
+function renderUpgrades(us) {
+  const info =
     $('#upgradesInfo');
 
+  if (!info) return;
 
-  if (!container) {
-    return;
-  }
-
-
-  container.innerHTML =
-    upgrades
+  info.innerHTML =
+    us
       .map(
-        upgrade =>
+        u =>
           `<div class="upgrade-card">
-
-            <b>
-              ${esc(
-                upgrade.name ||
-                upgrade.upgrade ||
-                upgrade.id
-              )}
-            </b>
-
+            <b>${esc(
+              u.name ||
+              u.upgrade ||
+              u.id
+            )}</b>
             <span>
               Level ${esc(
-                upgrade.level ??
-                upgrade.current_level ??
+                u.level ??
+                u.current_level ??
                 '—'
               )}
             </span>
-
           </div>`
       )
       .join('') ||
-
     '<div class="empty">No upgrade records returned.</div>';
 }
 
+function renderGeneric(id, data) {
+  const el = $('#' + id);
 
-/* =========================
-   GENERIC FEEDS
-========================= */
-
-function renderGeneric(
-  id,
-  data
-) {
-
-  const element =
-    $('#' + id);
-
-
-  if (!element) {
-    return;
-  }
-
+  if (!el) return;
 
   const rows =
     arr(data);
 
-
   if (!rows.length) {
-
-    element.innerHTML =
+    el.innerHTML =
       '<div class="empty">No data returned for this feed.</div>';
-
     return;
   }
 
-
   const sample =
-    rows.slice(
-      0,
-      12
-    );
+    rows.slice(0, 12);
 
-
-  const columns =
+  const cols =
     [
       ...new Set(
         sample.flatMap(
-          object =>
-            typeof object ===
-              'object'
-              ? Object.keys(
-                  object
-                )
+          o =>
+            typeof o === 'object'
+              ? Object.keys(o)
               : ['value']
         )
       )
     ]
       .filter(
-        key =>
-          key !== 'id'
+        k => !['id'].includes(k)
       )
-      .slice(
-        0,
-        4
-      );
+      .slice(0, 4);
 
-
-  element.innerHTML =
-    `<table>
-
+  el.innerHTML = `
+    <table>
       <thead>
-
         <tr>
-
-          ${columns
+          ${cols
             .map(
-              column =>
-                `<th>
-                  ${esc(
-                    column.replaceAll(
-                      '_',
-                      ' '
-                    )
-                  )}
-                </th>`
+              c =>
+                `<th>${esc(
+                  c.replaceAll(
+                    '_',
+                    ' '
+                  )
+                )}</th>`
             )
             .join('')}
-
         </tr>
-
       </thead>
 
       <tbody>
-
         ${sample
           .map(
-            object =>
+            o =>
               `<tr>
+                ${cols
+                  .map(c => {
+                    let value =
+                      typeof o ===
+                      'object'
+                        ? o[c]
+                        : o;
 
-                ${columns
-                  .map(
-                    column =>
-                      `<td>
-                        ${esc(
-                          typeof object ===
-                            'object'
-                            ? typeof object[
-                                column
-                              ] ===
-                              'object'
-                              ? JSON.stringify(
-                                  object[
-                                    column
-                                  ]
-                                )
-                              : object[
-                                  column
-                                ]
-                            : object
-                        )}
-                      </td>`
-                  )
+                    if (
+                      typeof value ===
+                      'object'
+                    ) {
+                      try {
+                        value =
+                          JSON.stringify(
+                            value
+                          );
+                      } catch {
+                        value =
+                          String(value);
+                      }
+                    }
+
+                    return `<td>${esc(
+                      value
+                    )}</td>`;
+                  })
                   .join('')}
-
               </tr>`
           )
           .join('')}
-
       </tbody>
-
-    </table>`;
+    </table>
+  `;
 }
 
+function render(d) {
+  DATA = d;
 
-/* =========================
-   MAIN RENDER
-========================= */
+  const b =
+    d.basic || {};
 
-function render(
-  data
-) {
-
-  DATA = data;
-
-
-  const basic =
-    data.basic ||
-    {};
-
-
-  const members =
+  const ms =
     arr(
-      data.members?.members ||
-      data.members
+      d.members?.members ||
+      d.members
     );
 
-
-  const crimes =
+  const cs =
     arr(
-      data.crimes?.crimes ||
-      data.crimes
+      d.crimes?.crimes ||
+      d.crimes
     );
 
-
-  const armory =
+  const ar =
     arr(
-      data.armory?.items ||
-      data.armory
+      d.armory?.items ||
+      d.armory
     );
 
-
-  const chain =
-    data.chain ||
-    {};
-
-
-  const rankedWar =
-    data.rankedwar ||
-    data.rankedwars ||
-    null;
-
+  const ch =
+    d.chain || {};
 
   const name =
-    basic.name ||
-    'ORANGE';
-
+    b.name || 'ORANGE';
 
   if ($('#factionName')) {
     $('#factionName').textContent =
       name;
   }
 
-
   if ($('#heroTitle')) {
     $('#heroTitle').textContent =
       name;
   }
-
 
   if ($('#heroSub')) {
     $('#heroSub').textContent =
       `Faction #${CONFIG.factionId} • Command intelligence synchronized from Torn`;
   }
 
-
   const respect =
     get(
-      basic,
+      b,
       'respect',
       'respect_value'
     );
-
-
-  const capacity =
-    get(
-      basic,
-      'capacity'
-    );
-
-
-  const rank =
-    factionRank(
-      basic
-    );
-
-
-  const leader =
-    leaderName(
-      basic,
-      members
-    );
-
-
-  const age =
-    formatAge(
-      get(
-        basic,
-        'days_old'
-      )
-    );
-
 
   if ($('#respect')) {
     $('#respect').textContent =
       fmt(respect);
   }
 
-
   if ($('#membersCount')) {
     $('#membersCount').textContent =
       fmt(
         get(
-          basic,
-          'members',
+          b,
+          'members.member_count',
           'member_count'
-        ) ??
-        members.length
+        ) ?? ms.length
       );
   }
 
+  const cap =
+    get(
+      b,
+      'capacity',
+      'member_capacity',
+      'members.member_capacity'
+    );
 
   if ($('#capacitySmall')) {
     $('#capacitySmall').textContent =
-      `Capacity ${fmt(
-        capacity
-      )}`;
+      `Capacity ${fmt(cap)}`;
   }
 
+  const rank =
+    factionRank(b);
 
   if ($('#rank')) {
     $('#rank').textContent =
       rank;
   }
 
+  const chainNow =
+    Number(
+      get(
+        ch,
+        'current',
+        'current_chain',
+        'chain'
+      )
+    ) || 0;
+
+  if ($('#chain')) {
+    $('#chain').textContent =
+      fmt(chainNow);
+  }
+
+  if ($('#chainBig')) {
+    $('#chainBig').textContent =
+      fmt(chainNow);
+  }
 
   if ($('#ocCount')) {
     $('#ocCount').textContent =
-      fmt(
-        crimes.length
-      );
+      fmt(cs.length);
   }
-
-
-  const memberCounts =
-    getMemberCounts(
-      members
-    );
-
 
   if ($('#onlineCount')) {
     $('#onlineCount').textContent =
-      fmt(
-        memberCounts.online
-      );
+      fmt(stateCount(ms));
   }
 
+  const now =
+    new Date();
 
-  if ($('#factionInfo')) {
+  if ($('#updated')) {
+    $('#updated').textContent =
+      now.toLocaleTimeString();
+  }
 
-    const info = [
+  if ($('#footerUpdated')) {
+    $('#footerUpdated').textContent =
+      now.toLocaleTimeString();
+  }
 
-      [
-        'Faction ID',
-        CONFIG.factionId
-      ],
+  if ($('#feedTime')) {
+    $('#feedTime').textContent =
+      now.toLocaleTimeString();
+  }
 
-      [
-        'Leader',
-        leader
-      ],
+  const info = [
+    [
+      'Faction ID',
+      CONFIG.factionId
+    ],
+    [
+      'Leader',
+      leaderName(b)
+    ],
+    [
+      'Respect',
+      fmt(respect)
+    ],
+    [
+      'Rank',
+      rank
+    ],
+    [
+      'Age',
+      factionAge(b)
+    ],
+    [
+      'Members',
+      `${ms.length}${cap ? ` / ${cap}` : ''}`
+    ]
+  ];
 
-      [
-        'Respect',
-        fmt(respect)
-      ],
+  const factionInfo =
+    $('#factionInfo');
 
-      [
-        'Rank',
-        rank
-      ],
-
-      [
-        'Age',
-        age
-      ],
-
-      [
-        'Members',
-        `${members.length}${
-          capacity
-            ? ` / ${capacity}`
-            : ''
-        }`
-      ]
-
-    ];
-
-
-    $('#factionInfo').innerHTML =
+  if (factionInfo) {
+    factionInfo.innerHTML =
       info
         .map(
-          row =>
+          x =>
             `<div>
-
-              <span>
-                ${esc(
-                  row[0]
-                )}
-              </span>
-
-              <b>
-                ${esc(
-                  row[1]
-                )}
-              </b>
-
+              <span>${esc(x[0])}</span>
+              <b>${esc(x[1])}</b>
             </div>`
         )
         .join('');
   }
 
+  renderChain(ch);
 
-  renderChain(
-    chain
-  );
+  /*
+   * Readiness calculation.
+   * Uses the current chain value directly.
+   * This fixes the old undefined "chainNow" error.
+   */
+  const memberReadiness =
+    ms.length
+      ? Math.min(
+          1,
+          stateCount(ms) /
+            Math.max(1, ms.length)
+        ) * 40
+      : 8;
 
+  const chainReadiness =
+    Math.min(
+      1,
+      chainNow / 100
+    ) * 40;
 
-  const completedChains =
-    data.chains ||
-    data.history ||
-    [];
+  const warReadiness =
+    d.rankedwar ? 20 : 0;
 
+  const readiness =
+    Math.min(
+      100,
+      Math.round(
+        memberReadiness +
+        chainReadiness +
+        warReadiness
+      )
+    );
 
-  renderCompletedChains(
-    completedChains
-  );
+  if ($('#readiness')) {
+    $('#readiness').textContent =
+      readiness + '%';
+  }
 
+  if ($('#readinessTitle')) {
+    $('#readinessTitle').textContent =
+      readiness >= 75
+        ? 'Combat ready'
+        : readiness >= 45
+          ? 'Operational'
+          : 'Standby';
+  }
 
-  renderReadiness(
-    members,
-    crimes,
-    chain,
-    rankedWar
-  );
+  if ($('#readinessText')) {
+    $('#readinessText').textContent =
+      `${ms.length} members tracked • ${cs.length} OC records • ${
+        d.rankedwar
+          ? 'war data available'
+          : 'no active war data returned'
+      }`;
+  }
 
+  const liveInfo =
+    $('#liveInfo');
 
-  if ($('#liveInfo')) {
-
-    $('#liveInfo').innerHTML = [
-
+  if (liveInfo) {
+    liveInfo.innerHTML = [
       [
         'Roster',
-        `${members.length} members / ${memberCounts.online} online`
+        `${ms.length} members / ${stateCount(ms)} active`
       ],
-
-      [
-        'Offline',
-        memberCounts.offline
-      ],
-
-      [
-        'Hospital',
-        memberCounts.hospital
-      ],
-
-      [
-        'Abroad',
-        memberCounts.abroad
-      ],
-
-      [
-        'Jail',
-        memberCounts.jail
-      ],
-
       [
         'Organized crimes',
-        crimes.length
+        cs.length
       ],
-
       [
         'Armory records',
-        armory.length
+        ar.length
       ],
-
-      [
-        'Current chain',
-        fmt(
-          get(
-            chain,
-            'current'
-          ) || 0
-        )
-      ],
-
-      [
-        'Completed chains',
-        normalizeCompletedChains(
-          completedChains
-        ).length
-      ],
-
       [
         'Ranked war',
-        rankedWar
+        d.rankedwar
           ? 'Available'
           : 'Unavailable'
       ],
-
       [
         'Territory',
-        data.territory
+        d.territory
           ? 'Available'
           : 'Unavailable'
+      ],
+      [
+        'Partial feeds',
+        d._meta
+          ?.partial_failures
+          ?.length || 0
       ]
-
     ]
       .map(
-        row =>
+        x =>
           `<div class="feed-row">
-
-            <span>
-              ${esc(
-                row[0]
-              )}
-            </span>
-
-            <b>
-              ${esc(
-                row[1]
-              )}
-            </b>
-
+            <span>${esc(x[0])}</span>
+            <b>${esc(x[1])}</b>
           </div>`
       )
       .join('');
   }
 
-
   const keys = [
-
     'basic',
     'members',
     'chain',
-    'chains',
     'crimes',
     'rankedwar',
     'territory',
@@ -2886,177 +1328,83 @@ function render(
     'reports',
     'armory',
     'attacks',
-    'revives'
-
+    'revives',
+    'contributors',
+    'donations'
   ];
-
 
   if ($('#coverage')) {
     $('#coverage').textContent =
-      `${
-        keys.filter(
-          key =>
-            data[key]
-        ).length
-      }/${keys.length}`;
+      `${keys.filter(k => d[k]).length}/${keys.length}`;
   }
 
-
   if ($('#coverageInfo')) {
-
     $('#coverageInfo').innerHTML =
       keys
         .map(
-          key =>
+          k =>
             `<div class="coverage-row">
-
-              <span>
-                ${esc(key)}
-              </span>
-
-              <i
-                class="${
-                  data[key]
-                    ? 'ok'
-                    : 'no'
-                }"
-              >
-                ${
-                  data[key]
-                    ? '●'
-                    : '○'
-                }
+              <span>${esc(k)}</span>
+              <i class="${d[k] ? 'ok' : 'no'}">
+                ${d[k] ? '●' : '○'}
               </i>
-
             </div>`
         )
         .join('');
   }
 
-
-  renderMembers(
-    members
-  );
-
-
-  renderCrimes(
-    crimes
-  );
-
-
-  renderArmory(
-    armory
-  );
-
-
-  renderWar(
-    rankedWar || {}
-  );
-
-
+  /*
+   * Keep every existing renderer.
+   * Nothing from these sections is removed.
+   */
+  renderMembers(ms);
+  renderCrimes(cs);
+  renderArmory(ar);
+  renderWar(d.rankedwar || {});
   renderTerritory(
-    data.territory || {}
+    d.territory || {}
   );
-
-
   renderUpgrades(
     arr(
-      data.upgrades?.upgrades ||
-      data.upgrades
+      d.upgrades?.upgrades ||
+      d.upgrades
     )
   );
 
-
   renderGeneric(
     'applicationsInfo',
-    data.applications
+    d.applications
   );
-
 
   renderGeneric(
     'reportsInfo',
-    data.reports
+    d.reports
   );
-
 
   renderGeneric(
     'attacksInfo',
-    data.attacks
+    d.attacks
   );
-
 
   renderGeneric(
     'revivesInfo',
-    data.revives
+    d.revives
   );
-
 
   renderGeneric(
     'contributorsInfo',
-    data.contributors
+    d.contributors
   );
-
 
   renderGeneric(
     'donationsInfo',
-    data.donations
+    d.donations
   );
-
-
-  const now =
-    new Date()
-      .toLocaleTimeString();
-
-
-  [
-    'updated',
-    'footerUpdated',
-    'feedTime'
-  ].forEach(
-    id => {
-
-      const element =
-        $('#' + id);
-
-      if (element) {
-        element.textContent =
-          now;
-      }
-
-    }
-  );
-
-
-  const memberSync =
-    get(
-      data,
-      '_meta.members_synced_at',
-      '_meta.fetched_at'
-    );
-
-
-  if ($('#memberSyncTime')) {
-
-    $('#memberSyncTime')
-      .textContent =
-        memberSync
-          ? `Member data synced ${formatTime(
-              memberSync
-            )}`
-          : 'Member data synced —';
-  }
 }
 
-
-/* =========================
-   LOAD FACTION
-========================= */
-
 async function load() {
-
   const error =
     $('#error');
-
 
   if (error) {
     error.classList.add(
@@ -3064,28 +1412,27 @@ async function load() {
     );
   }
 
-
   if ($('#statusLine')) {
     $('#statusLine').textContent =
       'Syncing…';
   }
 
+  if ($('#liveDot')) {
+    $('#liveDot').className =
+      'sync';
+  }
 
   try {
-
     const response =
       await fetch(
         `/api/faction?faction_id=${CONFIG.factionId}`,
         {
-          cache:
-            'no-store'
+          cache: 'no-store'
         }
       );
 
-
     const data =
       await response.json();
-
 
     if (!response.ok) {
       throw new Error(
@@ -3094,199 +1441,147 @@ async function load() {
       );
     }
 
-
-    render(
-      data
-    );
-
+    render(data);
 
     if ($('#statusLine')) {
-
-      $('#statusLine')
-        .textContent =
-          data._meta?.cached
-            ? 'Live • database'
-            : 'Live • synchronized';
+      $('#statusLine').textContent =
+        data._meta?.cached
+          ? 'Live • database'
+          : 'Live • synchronized';
     }
 
+    if ($('#liveDot')) {
+      $('#liveDot').className =
+        '';
+    }
 
     if (
-      data._meta?.partial_failures?.length &&
-      error
+      data._meta
+        ?.partial_failures
+        ?.length
     ) {
+      if (error) {
+        error.textContent =
+          `Some Torn feeds were unavailable: ${
+            data._meta.partial_failures.join(
+              ' • '
+            )
+          }`;
 
-      error.textContent =
-        `Some Torn feeds were unavailable: ${
-          data._meta.partial_failures.join(
-            ' • '
-          )
-        }`;
-
-
-      error.classList.remove(
-        'hidden'
-      );
+        error.classList.remove(
+          'hidden'
+        );
+      }
     }
-
-  } catch (
-    exception
-  ) {
-
-    console.error(
-      'Faction load failed:',
-      exception
-    );
-
-
+  } catch (x) {
     if (error) {
-
       error.textContent =
-        `Could not load Torn data: ${exception.message}`;
+        `Could not load Torn data: ${x.message}`;
 
       error.classList.remove(
         'hidden'
       );
     }
-
 
     if ($('#statusLine')) {
       $('#statusLine').textContent =
         'API unavailable';
     }
+
+    if ($('#liveDot')) {
+      $('#liveDot').className =
+        'bad';
+    }
   }
 }
 
-
-/* =========================
-   LIVE CHAIN
-========================= */
-
 async function loadLiveChain() {
-
   try {
-
     const response =
       await fetch(
         `/api/chain?faction_id=${CONFIG.factionId}`,
         {
-          cache:
-            'no-store'
+          cache: 'no-store'
         }
       );
 
+    if (!response.ok) {
+      return;
+    }
 
     const data =
       await response.json();
 
-
-    if (!response.ok) {
-      throw new Error(
-        data.error ||
-        `HTTP ${response.status}`
-      );
+    if (
+      !data ||
+      !data.chain
+    ) {
+      return;
     }
 
-
-    LIVE_CHAIN =
-      data;
-
+    DATA.chain =
+      data.chain;
 
     renderChain(
-      data.chain || {}
+      DATA.chain
     );
 
-
-    const previousChains =
-      data.chains ||
-      data.history ||
-      [];
-
-
-    renderCompletedChains(
-      previousChains
-    );
-
-
-    if (
-      DATA &&
-      Object.keys(
-        DATA
-      ).length
-    ) {
-
-      renderReadiness(
-
-        arr(
-          DATA.members?.members ||
-          DATA.members
-        ),
-
-        arr(
-          DATA.crimes?.crimes ||
-          DATA.crimes
-        ),
-
-        data.chain || {},
-
-        DATA.rankedwar ||
-        DATA.rankedwars ||
-        null
-
-      );
+    if ($('#chain')) {
+      $('#chain').textContent =
+        fmt(
+          get(
+            DATA.chain,
+            'current',
+            'current_chain',
+            'chain'
+          )
+        );
     }
 
-  } catch (
-    error
-  ) {
-
-    console.error(
-      'Live chain load failed:',
-      error
-    );
+    if ($('#chainBig')) {
+      $('#chainBig').textContent =
+        fmt(
+          get(
+            DATA.chain,
+            'current',
+            'current_chain',
+            'chain'
+          )
+        );
+    }
+  } catch {
+    /*
+     * Normal faction data remains
+     * untouched if the live chain
+     * endpoint is unavailable.
+     */
   }
 }
 
-
-/* =========================
-   NAVIGATION
-========================= */
-
-setLinks();
-
-
-document
-  .querySelectorAll(
-    '.nav'
-  )
-  .forEach(
-    button => {
-
+function initNavigation() {
+  document
+    .querySelectorAll('.nav')
+    .forEach(button => {
       button.addEventListener(
         'click',
         () => {
-
           document
             .querySelectorAll(
               '.nav,.tab-panel'
             )
-            .forEach(
-              element =>
-                element.classList.remove(
-                  'active'
-                )
+            .forEach(x =>
+              x.classList.remove(
+                'active'
+              )
             );
-
 
           button.classList.add(
             'active'
           );
 
-
           const panel =
-            document.getElementById(
-              button.dataset.tab
-            );
-
+            $('#' +
+              button.dataset.tab);
 
           if (panel) {
             panel.classList.add(
@@ -3294,34 +1589,21 @@ document
             );
           }
 
-
           window.scrollTo({
             top: 0,
             behavior: 'smooth'
           });
-
         }
       );
-
-    }
-  );
-
-
-/* =========================
-   BUTTONS / SEARCH
-========================= */
-
-if ($('#refreshBtn')) {
-
-  $('#refreshBtn').onclick =
-    load;
+    });
 }
 
+function initSearch() {
+  const memberSearch =
+    $('#memberSearch');
 
-if ($('#memberSearch')) {
-
-  $('#memberSearch')
-    .addEventListener(
+  if (memberSearch) {
+    memberSearch.addEventListener(
       'input',
       () =>
         renderMembers(
@@ -3331,13 +1613,13 @@ if ($('#memberSearch')) {
           )
         )
     );
-}
+  }
 
+  const armorySearch =
+    $('#armorySearch');
 
-if ($('#armorySearch')) {
-
-  $('#armorySearch')
-    .addEventListener(
+  if (armorySearch) {
+    armorySearch.addEventListener(
       'input',
       () =>
         renderArmory(
@@ -3347,46 +1629,50 @@ if ($('#armorySearch')) {
           )
         )
     );
+  }
 }
 
+function startTimers() {
+  clearInterval(
+    chainTimer
+  );
 
-/* =========================
-   START
-========================= */
+  clearInterval(
+    activityTimer
+  );
+
+  chainTimer =
+    setInterval(
+      loadLiveChain,
+      CONFIG.chainRefreshMs
+    );
+
+  activityTimer =
+    setInterval(
+      updateMemberActivityClock,
+      CONFIG.activityClockMs
+    );
+}
+
+setLinks();
+
+initNavigation();
+
+initSearch();
+
+const refreshButton =
+  $('#refreshBtn');
+
+if (refreshButton) {
+  refreshButton.onclick =
+    load;
+}
 
 load();
 
-loadLiveChain();
-
-
-/*
- * Full faction/member sync:
- * every 5 minutes.
- */
+startTimers();
 
 setInterval(
   load,
   CONFIG.refreshMs
-);
-
-
-/*
- * Live chain:
- * every 5 seconds.
- */
-
-setInterval(
-  loadLiveChain,
-  CONFIG.chainRefreshMs
-);
-
-
-/*
- * Member activity clock:
- * every minute.
- */
-
-setInterval(
-  updateMemberActivityClock,
-  CONFIG.activityClockMs
 );
