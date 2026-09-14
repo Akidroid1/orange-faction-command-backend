@@ -3,22 +3,8 @@ const CONFIG = {
   discordInvite: 'https://discord.gg/duHJkWRRT',
   tornStats: 'https://www.tornstats.com/factions/53295',
 
-  /*
-   * Faction/member data:
-   * refreshed from the backend every 5 minutes.
-   */
   refreshMs: 300000,
-
-  /*
-   * Current chain:
-   * refreshed every 5 seconds.
-   */
   chainRefreshMs: 5000,
-
-  /*
-   * The displayed "Xm ago" / "Xh ago"
-   * counter updates locally every minute.
-   */
   activityClockMs: 60000
 };
 
@@ -49,24 +35,15 @@ const esc = value =>
     }[char])
   );
 
-function get(
-  object,
-  ...paths
-) {
-  for (
-    const path of paths
-  ) {
-    const value =
-      path
-        .split('.')
-        .reduce(
-          (
-            result,
-            key
-          ) =>
-            result?.[key],
-          object
-        );
+function get(object, ...paths) {
+  for (const path of paths) {
+    const value = path
+      .split('.')
+      .reduce(
+        (result, key) =>
+          result?.[key],
+        object
+      );
 
     if (
       value !== undefined &&
@@ -80,9 +57,7 @@ function get(
 }
 
 function arr(value) {
-  if (
-    Array.isArray(value)
-  ) {
+  if (Array.isArray(value)) {
     return value;
   }
 
@@ -90,13 +65,91 @@ function arr(value) {
     value &&
     typeof value === 'object'
   ) {
-    return Object.values(
-      value
-    );
+    return Object.values(value);
   }
 
   return [];
 }
+
+
+/* =========================
+   DURATION
+========================= */
+
+function formatDuration(seconds) {
+
+  let total =
+    Number(seconds);
+
+  if (
+    !Number.isFinite(total) ||
+    total < 0
+  ) {
+    return '—';
+  }
+
+  total =
+    Math.floor(total);
+
+  const days =
+    Math.floor(
+      total / 86400
+    );
+
+  total %= 86400;
+
+  const hours =
+    Math.floor(
+      total / 3600
+    );
+
+  total %= 3600;
+
+  const minutes =
+    Math.floor(
+      total / 60
+    );
+
+  const secs =
+    total % 60;
+
+
+  const parts = [];
+
+  if (days) {
+    parts.push(
+      `${days}d`
+    );
+  }
+
+  if (hours) {
+    parts.push(
+      `${hours}h`
+    );
+  }
+
+  if (minutes) {
+    parts.push(
+      `${minutes}m`
+    );
+  }
+
+  if (
+    secs ||
+    !parts.length
+  ) {
+    parts.push(
+      `${secs}s`
+    );
+  }
+
+  return parts.join(' ');
+}
+
+
+/* =========================
+   GLOBAL DATA
+========================= */
 
 let DATA = {};
 let LIVE_CHAIN = null;
@@ -230,9 +283,7 @@ function formatAge(days) {
    FACTION INFO
 ========================= */
 
-function factionRank(
-  basic
-) {
+function factionRank(basic) {
 
   const rank =
     get(
@@ -354,9 +405,7 @@ function leaderName(
    CHAIN
 ========================= */
 
-function chainState(
-  chain
-) {
+function chainState(chain) {
 
   const current =
     Number(
@@ -438,9 +487,7 @@ function nextChainMilestone(
 }
 
 
-function renderChain(
-  chain
-) {
+function renderChain(chain) {
 
   const state =
     chainState(
@@ -661,12 +708,19 @@ function renderChain(
         .map(
           row =>
             `<div class="list-row">
-              <span>${esc(
-                row[0]
-              )}</span>
-              <b>${esc(
-                row[1]
-              )}</b>
+
+              <span>
+                ${esc(
+                  row[0]
+                )}
+              </span>
+
+              <b>
+                ${esc(
+                  row[1]
+                )}
+              </b>
+
             </div>`
         )
         .join('');
@@ -799,7 +853,10 @@ function renderCompletedChains(
               )
             ) || 0;
 
-          return bTime - aTime;
+          return (
+            bTime -
+            aTime
+          );
         }
       );
 
@@ -809,11 +866,15 @@ function renderCompletedChains(
     <div class="panel-head">
 
       <div>
-        <h2>Previous Chains</h2>
+
+        <h2>
+          Previous Chains
+        </h2>
 
         <span class="muted">
           Completed faction chains
         </span>
+
       </div>
 
       <span>
@@ -900,6 +961,7 @@ function renderCompletedChains(
                         Number(start) &&
                         Number(end)
                       ) {
+
                         duration =
                           formatDuration(
                             Number(end) -
@@ -985,14 +1047,6 @@ function renderCompletedChains(
    MEMBER STATUS
 ========================= */
 
-/*
- * Torn can expose member state in slightly
- * different fields depending on API response.
- *
- * We deliberately inspect several known
- * locations so the display remains reliable.
- */
-
 function getMemberStatus(
   member
 ) {
@@ -1027,12 +1081,6 @@ function getMemberStatus(
   const combined =
     `${state} ${description}`;
 
-
-  /*
-   * IMPORTANT:
-   * These are checked first because they
-   * represent a member's actual location/state.
-   */
 
   if (
     combined.includes(
@@ -1091,10 +1139,6 @@ function getMemberStatus(
   }
 
 
-  /*
-   * Online state.
-   */
-
   if (
     combined.includes(
       'online'
@@ -1106,12 +1150,6 @@ function getMemberStatus(
     };
   }
 
-
-  /*
-   * If Torn says "Okay" but does not say
-   * online, display Okay rather than assuming
-   * the member is online.
-   */
 
   if (
     combined === 'okay' ||
@@ -1126,10 +1164,6 @@ function getMemberStatus(
   }
 
 
-  /*
-   * Generic active/available state.
-   */
-
   if (
     combined.includes(
       'active'
@@ -1141,10 +1175,6 @@ function getMemberStatus(
     };
   }
 
-
-  /*
-   * Offline / inactive.
-   */
 
   if (
     combined.includes(
@@ -1160,12 +1190,6 @@ function getMemberStatus(
     };
   }
 
-
-  /*
-   * If Torn gives a structured status
-   * object but none of the above matched,
-   * use its state as the label.
-   */
 
   if (
     statusObject &&
@@ -1184,6 +1208,7 @@ function getMemberStatus(
           String(
             fallback
           ),
+
         type:
           String(
             fallback
@@ -1219,12 +1244,6 @@ function memberActivityTimestamp(
       'last_action'
     );
 
-  /*
-   * Most common Torn structure:
-   *
-   * last_action.timestamp
-   * last_action.relative
-   */
 
   const timestamp =
     get(
@@ -1236,6 +1255,7 @@ function memberActivityTimestamp(
       'last_active'
     );
 
+
   if (
     timestamp != null
   ) {
@@ -1246,17 +1266,18 @@ function memberActivityTimestamp(
       );
 
     if (
-      Number.isFinite(number)
+      Number.isFinite(
+        number
+      )
     ) {
-
-      /*
-       * Torn timestamps are Unix seconds.
-       */
 
       if (
         number > 1000000000
       ) {
-        return number * 1000;
+        return (
+          number *
+          1000
+        );
       }
 
       return number;
@@ -1264,12 +1285,9 @@ function memberActivityTimestamp(
   }
 
 
-  /*
-   * Some responses can expose a date string.
-   */
-
   if (
-    typeof last === 'string'
+    typeof last ===
+      'string'
   ) {
 
     const parsed =
@@ -1308,16 +1326,11 @@ function parseRelativeActivity(
       .toLowerCase()
       .trim();
 
-  if (
-    !text
-  ) {
+
+  if (!text) {
     return null;
   }
 
-
-  /*
-   * "Online now"
-   */
 
   if (
     text.includes(
@@ -1331,23 +1344,16 @@ function parseRelativeActivity(
   }
 
 
-  /*
-   * Examples:
-   *
-   * 5 minutes ago
-   * 2 hours ago
-   * 3 days ago
-   * 1 month ago
-   */
-
   const match =
     text.match(
       /(\d+(?:\.\d+)?)\s*(second|seconds|sec|secs|minute|minutes|min|mins|hour|hours|hr|hrs|day|days|week|weeks|month|months|year|years)/
     );
 
+
   if (!match) {
     return null;
   }
+
 
   const amount =
     Number(
@@ -1356,6 +1362,7 @@ function parseRelativeActivity(
 
   const unit =
     match[2];
+
 
   const multipliers = {
 
@@ -1421,14 +1428,17 @@ function parseRelativeActivity(
 
   };
 
+
   const multiplier =
     multipliers[unit];
+
 
   if (
     !multiplier
   ) {
     return null;
   }
+
 
   return (
     Date.now() -
@@ -1448,6 +1458,7 @@ function getMemberActivity(
     memberActivityTimestamp(
       member
     );
+
 
   if (
     timestamp != null
@@ -1478,6 +1489,7 @@ function formatRelativeActivity(
     return 'No activity data';
   }
 
+
   const elapsed =
     Math.max(
       0,
@@ -1485,10 +1497,12 @@ function formatRelativeActivity(
       Number(timestamp)
     );
 
+
   const seconds =
     Math.floor(
       elapsed / 1000
     );
+
 
   if (
     seconds < 60
@@ -1496,10 +1510,12 @@ function formatRelativeActivity(
     return 'Active now';
   }
 
+
   const minutes =
     Math.floor(
       seconds / 60
     );
+
 
   if (
     minutes < 60
@@ -1507,14 +1523,17 @@ function formatRelativeActivity(
     return `${minutes}m ago`;
   }
 
+
   const hours =
     Math.floor(
       minutes / 60
     );
 
+
   if (
     hours < 24
   ) {
+
     const remaining =
       minutes % 60;
 
@@ -1523,10 +1542,12 @@ function formatRelativeActivity(
       : `${hours}h ago`;
   }
 
+
   const days =
     Math.floor(
       hours / 24
     );
+
 
   if (
     days < 30
@@ -1534,10 +1555,12 @@ function formatRelativeActivity(
     return `${days}d ago`;
   }
 
+
   const months =
     Math.floor(
       days / 30
     );
+
 
   if (
     months < 12
@@ -1545,10 +1568,12 @@ function formatRelativeActivity(
     return `${months}mo ago`;
   }
 
+
   const years =
     Math.floor(
       months / 12
     );
+
 
   return `${years}y ago`;
 }
@@ -1567,23 +1592,19 @@ function memberSortScore(
       member
     );
 
+
   const priority = {
 
     online: 0,
-
     active: 1,
-
     okay: 2,
-
     hospital: 3,
-
     abroad: 4,
-
     jail: 5,
-
     offline: 6
 
   };
+
 
   return (
     priority[
@@ -1613,6 +1634,7 @@ function sortMembers(
           b
         );
 
+
       if (
         statusA !==
         statusB
@@ -1623,15 +1645,18 @@ function sortMembers(
         );
       }
 
+
       const activityA =
         getMemberActivity(
           a
         ) || 0;
 
+
       const activityB =
         getMemberActivity(
           b
         ) || 0;
+
 
       return (
         activityB -
@@ -1680,6 +1705,7 @@ function getMemberCounts(
           member
         );
 
+
       if (
         counts[
           status.type
@@ -1696,16 +1722,6 @@ function getMemberCounts(
   );
 
 
-  /*
-   * "active" means currently Online
-   * OR explicitly Active.
-   */
-
-  counts.active =
-    counts.online +
-    counts.active;
-
-
   return counts;
 }
 
@@ -1720,6 +1736,7 @@ function renderMembers(
 
   const table =
     $('#membersTable');
+
 
   if (!table) {
     return;
@@ -1766,11 +1783,6 @@ function renderMembers(
       members
     );
 
-
-  /*
-   * Update existing member counters
-   * if the page already contains them.
-   */
 
   const memberOnline =
     $('#memberOnline');
@@ -1827,11 +1839,6 @@ function renderMembers(
   }
 
 
-  /*
-   * IMPORTANT:
-   * No Life column.
-   */
-
   table.innerHTML =
     sorted
       .map(
@@ -1842,10 +1849,12 @@ function renderMembers(
               member
             );
 
+
           const activity =
             getMemberActivity(
               member
             );
+
 
           const id =
             member.id ??
@@ -1919,9 +1928,6 @@ function renderMembers(
                   class="pill status-${esc(
                     statusClass
                   )}"
-                  data-member-status="${esc(
-                    status.type
-                  )}"
                 >
                   ${esc(
                     status.label
@@ -1954,9 +1960,11 @@ function renderMembers(
 
     `
       <tr>
+
         <td colspan="5">
           No member data returned.
         </td>
+
       </tr>
     `;
 }
@@ -1965,19 +1973,6 @@ function renderMembers(
 /* =========================
    LOCAL ACTIVITY CLOCK
 ========================= */
-
-/*
- * This does NOT contact Torn.
- *
- * It simply makes:
- *
- * 5m ago
- * 6m ago
- * 7m ago
- *
- * advance naturally while the page
- * waits for the next 5-minute sync.
- */
 
 function updateMemberActivityClock() {
 
@@ -1994,6 +1989,7 @@ function updateMemberActivityClock() {
               .activityTs
           );
 
+
         if (
           !Number.isFinite(
             timestamp
@@ -2001,6 +1997,7 @@ function updateMemberActivityClock() {
         ) {
           return;
         }
+
 
         element.textContent =
           formatRelativeActivity(
@@ -2025,10 +2022,12 @@ function calculateReadiness(
   const memberCount =
     members.length;
 
+
   const counts =
     getMemberCounts(
       members
     );
+
 
   const activeMembers =
     counts.online +
@@ -2129,86 +2128,6 @@ function renderReadiness(
 
 
 /* =========================
-   CRIMES
-========================= */
-
-function renderCrimes(
-  crimes
-) {
-
-  if (!$('#crimesTable')) {
-    return;
-  }
-
-  if ($('#ocNote')) {
-    $('#ocNote').textContent =
-      `${crimes.length} records`;
-  }
-
-  $('#crimesTable').innerHTML =
-    crimes
-      .slice(
-        0,
-        150
-      )
-      .map(
-        crime =>
-          `<tr>
-
-            <td>
-              ${esc(
-                crime.name ||
-                crime.crime_name ||
-                crime.id ||
-                'OC'
-              )}
-            </td>
-
-            <td>
-              <span class="pill">
-                ${esc(
-                  crime.status ||
-                  crime.state ||
-                  '—'
-                )}
-              </span>
-            </td>
-
-            <td>
-              ${esc(
-                formatTime(
-                  crime.created_at ||
-                  crime.created
-                )
-              )}
-            </td>
-
-            <td>
-              ${fmt(
-                arr(
-                  crime.participants ||
-                  crime.slots
-                ).length
-              )}
-            </td>
-
-            <td>
-              ${esc(
-                crime.difficulty ||
-                crime.success ||
-                '—'
-              )}
-            </td>
-
-          </tr>`
-      )
-      .join('') ||
-
-    '<tr><td colspan="5">No OC data returned.</td></tr>';
-}
-
-
-/* =========================
    ARMORY
 ========================= */
 
@@ -2219,9 +2138,11 @@ function renderArmory(
   const table =
     $('#armoryTable');
 
+
   if (!table) {
     return;
   }
+
 
   const query =
     (
@@ -2293,7 +2214,7 @@ function renderArmory(
 
 
 /* =========================
-   WAR / TERRITORY
+   WAR
 ========================= */
 
 function renderWar(
@@ -2303,9 +2224,11 @@ function renderWar(
   const container =
     $('#warInfo');
 
+
   if (!container) {
     return;
   }
+
 
   const record =
     get(
@@ -2332,10 +2255,12 @@ function renderWar(
 
 
   if ($('#warBadge')) {
-    $('#warBadge').textContent =
-      entries.length
-        ? 'DATA'
-        : 'NO ACTIVE DATA';
+
+    $('#warBadge')
+      .textContent =
+        entries.length
+          ? 'DATA'
+          : 'NO ACTIVE DATA';
   }
 
 
@@ -2366,12 +2291,17 @@ function renderWar(
 }
 
 
+/* =========================
+   TERRITORY
+========================= */
+
 function renderTerritory(
   territory
 ) {
 
   const container =
     $('#territoryInfo');
+
 
   if (!container) {
     return;
@@ -2431,6 +2361,7 @@ function renderUpgrades(
   const container =
     $('#upgradesInfo');
 
+
   if (!container) {
     return;
   }
@@ -2477,6 +2408,7 @@ function renderGeneric(
 
   const element =
     $('#' + id);
+
 
   if (!element) {
     return;
@@ -2704,9 +2636,7 @@ function render(
 
   if ($('#respect')) {
     $('#respect').textContent =
-      fmt(
-        respect
-      );
+      fmt(respect);
   }
 
 
@@ -3004,19 +2934,6 @@ function render(
   }
 
 
-  /*
-   * MEMBERS:
-   * This now renders only:
-   *
-   * Member
-   * Level
-   * Position
-   * Status
-   * Last Activity
-   *
-   * No Life column.
-   */
-
   renderMembers(
     members
   );
@@ -3109,10 +3026,6 @@ function render(
     }
   );
 
-
-  /*
-   * Optional sync timestamp.
-   */
 
   const memberSync =
     get(
@@ -3471,10 +3384,6 @@ setInterval(
 /*
  * Member activity clock:
  * every minute.
- *
- * This only changes the displayed
- * elapsed time. It does not make
- * additional Torn API requests.
  */
 
 setInterval(
